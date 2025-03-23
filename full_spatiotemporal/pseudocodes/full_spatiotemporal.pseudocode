@@ -1,0 +1,22 @@
+# 1. Load EEG measurements and leadfield matrix
+Input: K  # Leadfield matrix (Nc x 3Nv)
+Input: B  # EEG data matrix (Nc x T)
+Input: lambda_s, lambda_t  # Regularization parameters
+
+# 2. Compute Regularization Matrices
+Compute L_s  # Spatial Laplacian matrix (3Nv x 3Nv)
+Compute L_t  # Temporal difference matrix (T x T)
+I_s = Identity matrix of size (3Nv x 3Nv)
+I_t = Identity matrix of size (T x T)
+
+# 3. Construct the Full Spatio-Temporal Operator
+A = K.T @ K  # (3Nv x 3Nv) forward model correlation
+R_s = lambda_s * L_s  # Spatial smoothness term (3Nv x 3Nv)
+R_t = lambda_t * L_t  # Temporal smoothness term (T x T)
+
+# 4. Solve the Large Linear System
+# J = (K.T K + λ_s L_s + λ_t L_t)⁻¹ K.T B
+M = np.linalg.inv(A + R_s + np.kron(I_s, R_t)) @ K.T @ B  # Efficient block inversion
+
+# 5. Output Estimated Dipole Activity
+Return J  # (3Nv x T) reconstructed brain sources

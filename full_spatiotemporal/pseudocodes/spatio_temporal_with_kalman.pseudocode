@@ -1,0 +1,31 @@
+# 1. Initialize Parameters
+Initialize A, K, σ_η, σ_ε  # Transition matrix, leadfield matrix, noise variances
+Initialize J(0) using LORETA  # Initial source estimate
+P(0) = I * large_value  # Initial state covariance ( large value to indicate high initial uncertainty)
+C_η = σ_η² * I  # Process noise covariance
+C_ε = σ_ε² * I  # Measurement noise covariance
+
+# 2. Kalman Filtering for Each Time Step t
+for t in range(1, T):
+    # Prediction Step
+    J_pred = A * J(t-1)  # Predict source activity: state transition model AJ(t−1) to predict sources at the next time step
+    P_pred = A * P(t-1) * A.T + C_η  # Predict error covariance via P(t)
+    
+    # Compute Observation Prediction
+    b_pred = K * J_pred #Compute the expected EEG signal b_pred(t)
+    Innovation = b(t) - b_pred  # Measurement residual Compute the difference between actual EEG b(t) and prediction (innovation)
+    
+    # Compute Kalman Gain
+    S = K * P_pred * K.T + C_ε  # Innovation covariance
+    K_gain = P_pred * K.T * inv(S)  # Kalman gain matrix
+    
+    # Update Step
+    J(t) = J_pred + K_gain * Innovation  # Correct source estimate
+    P(t) = (I - K_gain * K) * P_pred  # Update error covariance
+
+# 3. Model Parameter Estimation Using Maximum Likelihood
+Optimize (A, σ_η, σ_ε) to maximize log-likelihood:
+    log L = -0.5 * sum_t [ log |S(t)| + Innovation.T * inv(S) * Innovation ] #Uses Akaike Information Criterion (AIC) to select the best model
+
+# 4. Output Reconstructed Source Activity J(t) and Covariances P(t)
+return J, P
