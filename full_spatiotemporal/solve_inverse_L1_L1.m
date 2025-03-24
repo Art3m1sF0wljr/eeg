@@ -51,10 +51,15 @@ function X = solve_inverse_L1_L1(B, A, L_t, lambda_t, rho, max_iter, tol)
         % --- X-update: Solve (A'*A + ρI)X = A'(B-Z1-U1) + (Z2+U2)*L_t ---
         RHS = A' * (B - Z1 - U1) + (Z2 + U2) * L_t;
         
-        % Use Jacobi preconditioned PCG
-        preconditioner = diag(diag(AtA) + rho);
-        [X_vec, ~] = pcg(@(x) reshape(AtA * reshape(x, M, T) + rho * reshape(x, M, T), ...
-                         RHS(:), 1e-6, 100, diag(1./preconditioner));
+        % System matrix function handle
+        matvec = @(x) reshape(AtA * reshape(x, M, T) + rho * reshape(x, M, T), [], 1);
+        
+        % Jacobi preconditioner
+        preconditioner = diag(diag(AtA)) + rho);
+        precond_matrix = diag(1./diag(preconditioner));
+        
+        % Solve with PCG
+        [X_vec, ~] = pcg(matvec, RHS(:), 1e-6, 100, [], [], precond_matrix);
         X = reshape(X_vec, M, T);
 
         % --- Z-updates (L1 proximal operators) ---
