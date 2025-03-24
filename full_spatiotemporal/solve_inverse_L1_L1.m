@@ -1,7 +1,6 @@
-
 function X = solve_inverse_L1_L1(B, A, L_t, lambda_t, rho, max_iter, tol)
 %min​{∥B−AX∥1​+λt​∥XLtT​∥1​}
-%(X,Z1​,Z2​,U1​,U2​)=∥Z1​∥1​+λt​∥Z2​∥1​+2ρ​(∥Z1​−B+AX+U1​∥22​+∥Z2​−XLtT​+U2​∥22​)
+%L(X,Z1​,Z2​,U1​,U2​)=∥Z1​∥1​+λt​∥Z2​∥1​+2ρ​(∥Z1​−B+AX+U1​∥22​+∥Z2​−XLtT​+U2​∥22​)
     % Inputs:
     %   B: EEG data (N_channels x T_time)
     %   A: Lead field matrix (N_channels x M_sources)
@@ -10,40 +9,28 @@ function X = solve_inverse_L1_L1(B, A, L_t, lambda_t, rho, max_iter, tol)
     %   rho: ADMM penalty parameter (default: 1.0)
     %   max_iter: Maximum iterations (default: 100)
     %   tol: Convergence tolerance (default: 1e-6)
+    %   verbose: Print progress (true/false, default: true)
     %
     % Output:
     %   X: Reconstructed sources (M_sources x T_time)
 
-     % Set default parameters if not provided
-    if nargin < 5 || isempty(rho), rho = 1.0; end
-    if nargin < 6 || isempty(max_iter), max_iter = 100; end
-    if nargin < 7 || isempty(tol), tol = 1e-6; end
-    
     verbose = true;
-    % Normalize problem
-    scale_A = norm(A, 'fro');
-    A = A / scale_A;
-    B = B / scale_A;
     
-    % Adaptive ρ parameters
-    mu = 5;  % Threshold for residual balancing
-    tau = 1.5;   % Update factor for ρ
-    max_rho = 10;  % Maximum value for rho
-    min_rho = 1e-2; % Minimum value for rho
 
     [N, T] = size(B);
     M = size(A, 2);
 
-    AtA = A' * A;
-    I = eye(M);
-    Lt = L_t';
-    
     % Initialize variables
     X = zeros(M, T);
-    Z1 = zeros(N, T);
-    Z2 = zeros(M, T);
-    U1 = zeros(N, T);
-    U2 = zeros(M, T);
+    Z1 = zeros(N, T);  % Auxiliary variable for data term
+    Z2 = zeros(M, T);  % Auxiliary variable for temporal term
+    U1 = zeros(N, T);  % Dual variable for data term
+    U2 = zeros(M, T);  % Dual variable for temporal term
+
+    % Precompute matrices for X-update
+    AtA = A' * A;
+    LtLt = L_t * L_t';
+    I = eye(M);
 
     if verbose
         fprintf('ADMM optimization for L1-L1 problem\n');
@@ -51,7 +38,7 @@ function X = solve_inverse_L1_L1(B, A, L_t, lambda_t, rho, max_iter, tol)
         fprintf('N = %d (channels), M = %d (sources), T = %d (time points)\n', N, M, T);
         fprintf('lambda_t = %.3f, rho = %.3f, max_iter = %d, tol = %.1e\n', lambda_t, rho, max_iter, tol);
         fprintf('-----------------------------------\n');
-        fprintf('Iter\tPrimal Res\tDual Res\tObjective\tRho\n');
+        fprintf('Iter\tPrimal Res\tDual Res\tObjective\n');
         fprintf('-----------------------------------\n');
     end
 
@@ -59,65 +46,53 @@ function X = solve_inverse_L1_L1(B, A, L_t, lambda_t, rho, max_iter, tol)
         X_prev = X;
         Z1_prev = Z1;
         Z2_prev = Z2;
-        
-        % --- X-update: Solve (A'*A + ρI)X + ρX*L_t*L_t' = RHS ---
-        % RHS = A'*(B-Z1-U1) + ρ*(Z2+U2)*L_t'
-        RHS = A' * (B - Z1 - U1) + rho * (Z2 + U2) * L_t';
-        
-        % Create function handles for PCG
-        % The system matrix is: (AtA + rho*I)X + rho*X*L_t*L_t'
-        matvec = @(x) reshape(...
-            AtA * reshape(x, M, T) + ...
-            rho * reshape(x, M, T) + ...
-            rho * reshape(x, M, T) * (L_t * L_t'), ...
-            [], 1);
-        
-        % Jacobi preconditioner - diagonal of the system matrix
-        diag_AtA = diag(AtA);
-        diag_LtLt = diag(L_t * L_t');
-        precond_diag = diag_AtA + rho + rho * diag_LtLt';
-        precond_func = @(x) reshape(x, M, T) ./ precond_diag;
-        
-        % Solve with PCG
-        [X_vec, ~] = pcg(matvec, RHS(:), 1e-6, 100, precond_func);
-        X = reshape(X_vec, M, T);
 
-        % --- Z-updates (L1 proximal operators) ---
-        Z1 = soft_threshold(B - A * X - U1, 1/rho);
-        Z2 = soft_threshold(X * Lt - U2, lambda_t/rho);
+        % --- Update X (least-squares) ---
+        residual_data = B - Z1_prev - U1;
+        residual_temp = Z2_prev + U2;
+        rhs = A' * residual_data + residual_temp * L_t;
+        X = (AtA + rho * I) \ rhs;  % Solve using Cholesky or CG for large M
 
-        % --- Dual updates ---
+        % --- Update Z1 (data term, L1 proximal) ---
+        residual = B - A * X - U1;
+        Z1 = sign(residual) .* max(abs(residual) - 1/rho, 0);
+
+        % --- Update Z2 (temporal term, L1 proximal) ---
+        temporal_residual = X * L_t' - U2;
+        Z2 = sign(temporal_residual) .* max(abs(temporal_residual) - lambda_t/rho, 0);
+
+        % --- Update dual variables ---
         U1 = U1 + (B - A * X - Z1);
-        U2 = U2 + (X * Lt - Z2);
+        U2 = U2 + (X * L_t' - Z2);
 
-        % --- Residuals ---
-        primal_res = norm(B - A * X - Z1, 'fro') + norm(X * Lt - Z2, 'fro');
+        % --- Compute residuals and objective ---
+        primal_res = norm(B - A * X - Z1, 'fro') + norm(X * L_t' - Z2, 'fro');
         dual_res = rho * (norm(A' * (Z1 - Z1_prev), 'fro') + norm((Z2 - Z2_prev) * L_t, 'fro'));
-
-        % --- Adaptive rho update ---
-        if primal_res > mu * dual_res
-            rho = min(rho * tau, max_rho);
-            U1 = U1 / tau;
-            U2 = U2 / tau;
-        elseif dual_res > mu * primal_res
-            rho = max(rho / tau, min_rho);
-            U1 = U1 * tau;
-            U2 = U2 * tau;
-        end
+		if primal_res > 10 * dual_res
+			rho = rho * 2;   % Increase penalty if primal res is too high
+		elseif dual_res > 10 * primal_res
+			rho = rho / 2;   % Decrease penalty if dual res is too high
+		end
+        
+        % Objective: ||B - AX||_1 + lambda_t ||X L_t^T||_1
+        obj = sum(abs(B - A * X), 'all') + lambda_t * sum(abs(X * L_t'), 'all');
 
         if verbose
-            fprintf('%4d\t%.2e\t%.2e\t%.2e\n', iter, primal_res, dual_res, rho);
+            fprintf('%4d\t%.3e\t%.3e\t%.3e\n', iter, primal_res, dual_res, obj);
         end
 
-        if max(primal_res, dual_res) < tol
+        % --- Check convergence ---
+        if primal_res < tol && dual_res < tol
             if verbose
-                fprintf('Converged!\n');
+                fprintf('-----------------------------------\n');
+                fprintf('Converged at iteration %d\n', iter);
             end
             break;
         end
     end
-end
 
-function Y = soft_threshold(X, threshold)
-    Y = sign(X) .* max(abs(X) - threshold, 0);
+    if iter == max_iter && verbose
+        fprintf('-----------------------------------\n');
+        fprintf('Maximum iterations reached\n');
+    end
 end
