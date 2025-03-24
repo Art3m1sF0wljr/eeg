@@ -72,9 +72,9 @@ function X = solve_inverse_L1_L1(B, A, L_t, lambda_t, rho, max_iter, tol)
         dual_res = rho * (norm(A' * (Z1 - Z1_prev), 'fro') + norm((Z2 - Z2_prev) * L_t, 'fro'));
 		
 		if primal_res > 10 * dual_res
-			rho = rho * 1;   % Increase penalty if primal res is too high
+			rho = rho * 1.5;   % Increase penalty if primal res is too high
 		elseif dual_res > 10 * primal_res
-			rho = rho / 2;   % Decrease penalty if dual res is too high
+			rho = rho / 1.5;   % Decrease penalty if dual res is too high
 		end
         
         % Objective: ||B - AX||_1 + lambda_t ||X L_t^T||_1
