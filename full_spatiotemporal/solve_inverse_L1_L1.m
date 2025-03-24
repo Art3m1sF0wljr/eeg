@@ -1,4 +1,4 @@
-function X = solve_inverse_L1_L1_verbose(B, A, L_t, lambda_t, rho, max_iter, tol)
+function X = solve_inverse_L1_L1(B, A, L_t, lambda_t, rho, max_iter, tol)
     % Inputs:
     %   B: EEG data (N_channels x T_time)
     %   A: Lead field matrix (N_channels x M_sources)
