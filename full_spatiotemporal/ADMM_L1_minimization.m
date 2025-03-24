@@ -48,13 +48,20 @@ function X_reconstructed = ADMM_L1_minimization(B, A, L_s, L_t, lambda_s, lambda
     % =============================================
     
     % Spatial preconditioner (incomplete Cholesky)
-    M_spatial = ichol(ATA + LsTLs + 1e-6*speye(Nsources));
-    
+    M_spatial_base = ATA + LsTLs;
+    % Ensure diagonal dominance for ichol
+    M_spatial = M_spatial_base + 1e-6*speye(Nsources);
+    try
+        M_spatial_ichol = ichol(M_spatial);
+    catch
+        % If ichol fails, add more regularization
+        M_spatial_ichol = ichol(M_spatial + 1e-3*speye(Nsources));
+    end
     % Temporal preconditioner (regularized LtLtT is pentadiagonal)
     M_temporal = LtLtT + 1e-6*speye(T);
     
     % Create efficient block-diagonal preconditioner function
-    preconditioner = @(x) block_diagonal_solve(M_spatial, M_temporal, x, Nsources, T);
+    preconditioner = @(x) block_diagonal_solve(M_spatial_ichol, M_temporal, x, Nsources, T);
     
 
     % ADMM iterations
