@@ -81,9 +81,9 @@ L_s = construct_spatial_laplacian(dipole_positions, sigma, neighborhood_threshol
 L_t = diag(ones(T-1,1), 1) + diag(ones(T-1,1), -1) - 2*eye(T); % Temporal smoothness matrix, approximates second derivative thru finite differences
 
 % Solve the inverse problem
-%J_reconstructed = solve_inverse_problem(B, A, L_s, L_t, lambda_s, lambda_t, T, tol, max_iter);
-%J_reconstructed = ADMM_L1_minimization(B, A, L_s, L_t, lambda_s, lambda_t, rho, max_iter, tol, verbose)
-%J_reconstructed = ADMM_L1_minimization_GPU(B, A, L_s, L_t, lambda_s, lambda_t, rho, max_iter, tol, verbose)
+%J_reconstructed = solve_inverse_problem(B, A, L_s, L_t, lambda_s, lambda_t, T, tol, max_iter)% min_{X} {​∥B−A⋅X∥_{2}^{2}​+λ_s​∥L_s​⋅X∥_{2}^{2}​+λ_t​∥X⋅L_{t}^{T}∥​_{2}^{2}}
+%J_reconstructed = ADMM_L1_minimization(B, A, L_s, L_t, lambda_s, lambda_t, rho, max_iter, tol, verbose)% min_{X} {​∥B−A⋅X∥_{1}​+λ_s​∥L_s​⋅X∥_{1}​+λ_t​∥X⋅L_{t}^{T}∥​_{1}}, not quite working
+%J_reconstructed = ADMM_L1_minimization_GPU(B, A, L_s, L_t, lambda_s, lambda_t, rho, max_iter, tol, verbose)%same as abobe but with gpu features
 J_reconstructed = solve_inverse_L1_L1(B, A, L_t, lambda_t, rho, max_iter, tol)
 % Display results
 % Plot for the inverse problem
