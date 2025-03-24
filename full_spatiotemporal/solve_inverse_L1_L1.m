@@ -52,7 +52,7 @@ function X = solve_inverse_L1_L1(B, A, L_t, lambda_t, rho, max_iter, tol)
         RHS = A' * (B - Z1 - U1) + (Z2 + U2) * L_t;
         
         % Use Jacobi preconditioned PCG
-        preconditioner = diag(diag(AtA) + rho;
+        preconditioner = diag(diag(AtA) + rho);
         [X_vec, ~] = pcg(@(x) reshape(AtA * reshape(x, M, T) + rho * reshape(x, M, T), ...
                          RHS(:), 1e-6, 100, diag(1./preconditioner));
         X = reshape(X_vec, M, T);
