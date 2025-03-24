@@ -1,4 +1,5 @@
 clear all; close all;
+tic
 load('DipoleField'); 
 Nsources = 3 * sum(DipoleField.inside);
 
@@ -88,6 +89,7 @@ L_t = diag(ones(T-1,1), 1) + diag(ones(T-1,1), -1) - 2*eye(T); % Temporal smooth
 J_reconstructed = solve_inverse_L1_L1(B, A, L_t, lambda_t, rho, max_iter, tol)
 
 % Display results
+toc
 % Plot for the inverse problem
 figure;
 hold on;
