@@ -42,9 +42,9 @@ activation_values = rand(active_sources, 1); % Random activation values for the 
 
 % Generate EEG data using the function 1 or 2
 % for constant_B optimal threshold for inverse is 0.8
-%[B, Xsimulated] = smootly_varying_B_numerical_center(A, good_dipoles, T, active_sources, neighborhood_size, base_probability, space_smooth_factor);
+[B, Xsimulated] = smootly_varying_B_numerical_center(A, good_dipoles, T, active_sources, neighborhood_size, base_probability, space_smooth_factor);
 %[B, Xsimulated] = constant_B(A, active_source_indices, activation_values, T);
-[B, Xsimulated] = professor_generated_B(A, good_dipoles, T, active_sources, space_smooth_factor);
+%[B, Xsimulated] = professor_generated_B(A, good_dipoles, T, active_sources, space_smooth_factor);
 
 % Display EEG scalp potentials at the first time point
 F = scatteredInterpolant(elec.elecpos(:,1), elec.elecpos(:,2), elec.elecpos(:,3), B(:, 1), 'natural');
@@ -64,7 +64,7 @@ end
 
 % Solve the inverse problem using the provided function
 lambda_s = 0.1; % Spatial regularization parameter 0.1e-8 for L2
-lambda_t = 0.1; % Temporal regularization parameter 0.1e-8 for L2
+lambda_t = 0.1e-2; % Temporal regularization parameter 0.1e-8 for L2
 tol = 1e-3; % Convergence tolerance  3e-5 for L2
 max_iter = 1500; % Maximum iterations
 rho = 1.0;      % ADMM penalty parameter
