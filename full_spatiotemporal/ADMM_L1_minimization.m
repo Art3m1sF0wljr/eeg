@@ -72,7 +72,17 @@ function X_reconstructed = ADMM_L1_minimization(B, A, L_s, L_t, lambda_s, lambda
     opts.diagcomp = 1e-3;  % Additional diagonal boost
     opts.type = 'ict';
     opts.droptol = 1e-2;
-    M_spatial_ichol = ichol(M_spatial, opts);
+    %M_spatial_ichol = ichol(M_spatial, opts);
+	
+	try
+		M_spatial_ichol = ichol(M_spatial, opts);
+	catch
+		warning('ichol failed, using diagonal preconditioner');
+		D = diag(M_spatial);
+		D(D < 1e-6) = 1e-6;  % Ensure positive diagonal
+		M_spatial_ichol = struct('L', spdiags(sqrt(D), 0, Nsources, Nsources), ...
+								'U', spdiags(sqrt(D), 0, Nsources, Nsources));
+	end	
 	
     % Temporal preconditioner (regularized LtLtT is pentadiagonal)
     M_temporal = sparse(LtLtT + 1e-4*speye(T));
