@@ -33,6 +33,16 @@ function X_reconstructed = ADMM_L1_minimization(B, A, L_s, L_t, lambda_s, lambda
     ATA = A' * A;  % Size: Nsources x Nsources
     LsTLs = L_s' * L_s;  % Size: Nsources x Nsources
     LtLtT = L_t * L_t';  % Size: T x T
+	
+	% Add preconditioner setup (same as GPU version)
+    diag_ATA_LsTLs = diag(ATA + LsTLs); % Diagonal of ATA + LsTLs
+    diag_LtLtT = diag(LtLtT); % Diagonal of LtLtT
+	% Expand diagonals for Kronecker product
+    diag_ATA_LsTLs_expanded = repmat(diag_ATA_LsTLs, [T, 1]);
+    diag_kron = repelem(diag_LtLtT, Nsources);
+	% Combine diagonals
+    M_diag = diag_ATA_LsTLs_expanded + diag_kron;
+    preconditioner = @(x) x ./ M_diag;
 
     % ADMM iterations
     for iter = 1:max_iter
@@ -50,8 +60,9 @@ function X_reconstructed = ADMM_L1_minimization(B, A, L_s, L_t, lambda_s, lambda
 
         % Solve M * X_vec = RHS using PCG with implicit system matrix
         max_iter_pcg = 5000; % Increase the maximum number of iterations for PCG
+        % Modified PCG call with preconditioner
         [X_vec, flag, relres, pcg_iter] = pcg(@(x) apply_system_matrix_implicit(x, ATA, LsTLs, LtLtT, Nsources, T), ...
-                                             RHS(:), tol, max_iter_pcg);
+                                         RHS(:), tol, max_iter_pcg, [], [], preconditioner);
 
         % Check PCG convergence
         if flag ~= 0 && verbose >= 1
