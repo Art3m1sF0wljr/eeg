@@ -39,11 +39,23 @@ function X_reconstructed = ADMM_L1_minimization(B, A, L_s, L_t, lambda_s, lambda
     LtLtT = L_t * L_t';  % Size: T x T
 
     % Preconditioner setup (diagonal preconditioner)
-    diag_ATA_LsTLs = diag(ATA + LsTLs); % Nsources x 1 vector
-    diag_LtLtT = diag(LtLtT); % T x 1 vector
-    
+    %diag_ATA_LsTLs = diag(ATA + LsTLs); % Nsources x 1 vector
+    %diag_LtLtT = diag(LtLtT); % T x 1 vector
     % Create efficient diagonal preconditioner function
-    preconditioner = @(x) x ./ (kron(ones(T,1), diag_ATA_LsTLs) + kron(diag_LtLtT, ones(Nsources,1)));
+    %preconditioner = @(x) x ./ (kron(ones(T,1), diag_ATA_LsTLs) + kron(diag_LtLtT, ones(Nsources,1)));
+	% =============================================
+    % NEW: Optimized Preconditioner Setup
+    % =============================================
+    
+    % Spatial preconditioner (incomplete Cholesky)
+    M_spatial = ichol(ATA + LsTLs + 1e-6*speye(Nsources));
+    
+    % Temporal preconditioner (regularized LtLtT is pentadiagonal)
+    M_temporal = LtLtT + 1e-6*speye(T);
+    
+    % Create efficient block-diagonal preconditioner function
+    preconditioner = @(x) block_diagonal_solve(M_spatial, M_temporal, x, Nsources, T);
+    
 
     % ADMM iterations
     for iter = 1:max_iter
@@ -60,33 +72,37 @@ function X_reconstructed = ADMM_L1_minimization(B, A, L_s, L_t, lambda_s, lambda
         RHS = RHS + spatial_term + temporal_term;
 
         % Solve M * X_vec = RHS using PCG with preconditioner
-        max_iter_pcg = 5000;
+        max_iter_pcg = min(5000, max_iter*10);  % Adjusted max PCG iterations
         [X_vec, flag, relres, pcg_iter] = pcg(...
             @(x) apply_system_matrix_implicit(x, ATA, LsTLs, LtLtT, Nsources, T), ...
-            RHS(:), ...  % Right-hand side vector
+            RHS(:), ...
             tol, ...
             max_iter_pcg, ...
-            preconditioner, ...  % Preconditioner function
-            [], ...  % No initial guess (use zero vector)
-            X(:) ...  % Use current X as initial guess
-        );
-
+            preconditioner, ...
+            [], ...
+            X(:));
+		
+		if flag ~= 0 && verbose >= 1
+            fprintf('PCG warning: flag=%d, relres=%e at iter=%d\n', flag, relres, iter);
+        end
+		
         % [Rest of the ADMM iterations remain the same]
         
         % Reshape X back to matrix form
         X = reshape(X_vec, [Nsources, T]);
+		Z1 = soft_threshold(B - A*X + U1, 1/rho);
+        Z2 = soft_threshold(L_s*X + U2, lambda_s/rho);
+        Z3 = soft_threshold(X*L_t' + U3, lambda_t/rho);
 
         % Update Z1 (soft-thresholding for data fidelity)
-        residual1 = B - A * X + U1;
-        Z1 = soft_threshold(residual1, 1 / rho);
-
+        %residual1 = B - A * X + U1;
+        %Z1 = soft_threshold(residual1, 1 / rho);
         % Update Z2 (soft-thresholding for spatial regularization)
-        residual2 = L_s * X + U2;
-        Z2 = soft_threshold(residual2, lambda_s / rho);
-
+        %residual2 = L_s * X + U2;
+        %Z2 = soft_threshold(residual2, lambda_s / rho);
         % Update Z3 (soft-thresholding for temporal regularization)
-        residual3 = X * L_t' + U3;
-        Z3 = soft_threshold(residual3, lambda_t / rho);
+        %residual3 = X * L_t' + U3;
+        %Z3 = soft_threshold(residual3, lambda_t / rho);
 
         % Update dual variables
         U1 = U1 + (B - A * X - Z1);
@@ -94,12 +110,8 @@ function X_reconstructed = ADMM_L1_minimization(B, A, L_s, L_t, lambda_s, lambda
         U3 = U3 + (X * L_t' - Z3);
 
         % Compute primal and dual residuals
-        primal_residual = norm(B - A * X - Z1, 'fro') + ...
-                          norm(L_s * X - Z2, 'fro') + ...
-                          norm(X * L_t' - Z3, 'fro');
-        dual_residual = rho * (norm(A' * (Z1 - Z1_prev), 'fro') + ...
-                              norm(L_s' * (Z2 - Z2_prev), 'fro') + ...
-                              norm((Z3 - Z3_prev) * L_t, 'fro'));
+        primal_residual = norm(B - A*X - Z1,'fro') + norm(L_s*X - Z2,'fro') + norm(X*L_t' - Z3,'fro');
+        dual_residual = rho*(norm(A'*(Z1 - Z1_prev),'fro') + norm(L_s'*(Z2 - Z2_prev),'fro') + norm((Z3 - Z3_prev)*L_t,'fro'));
 
         % Verbosity: Print progress
         if verbose >= 1
@@ -134,7 +146,20 @@ function X_reconstructed = ADMM_L1_minimization(B, A, L_s, L_t, lambda_s, lambda
     % Output the reconstructed source activity
     X_reconstructed = X;
 end
+% =============================================
 
+function y = block_diagonal_solve(M_spatial, M_temporal, x, Nsources, T)
+    % Solves (M_spatial ⊗ I + I ⊗ M_temporal) y = x
+    X = reshape(x, [Nsources, T]);
+    
+    % Solve temporal part first (pentadiagonal system)
+    Y = M_temporal' \ X';  % Solves M_temporal' * Y = X' efficiently
+    
+    % Solve spatial part (using ichol factorization)
+    Y = M_spatial \ Y';
+    
+    y = Y(:);
+end
 % Function to apply the system matrix M to a vector x (implicitly)
 function y = apply_system_matrix_implicit(x, ATA, LsTLs, LtLtT, Nsources, T)
     % Reshape x into a matrix
