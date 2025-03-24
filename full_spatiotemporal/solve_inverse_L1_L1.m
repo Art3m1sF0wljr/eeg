@@ -12,17 +12,22 @@ function X = solve_inverse_L1_L1(B, A, L_t, lambda_t, rho, max_iter, tol)
     %   X: Reconstructed sources (M_sources x T_time)
 
     verbose = true;
-    % Normalize data
-    A = A / norm(A, 'fro');
-    B = B / norm(B, 'fro');
+    % Normalize problem
+    scale_A = norm(A, 'fro');
+    A = A / scale_A;
+    B = B / scale_A;
     
     % Adaptive ρ parameters
-    mu = 2;  % Threshold for residual balancing
-    tau = 1;   % Update factor for ρ
+    mu = 5;  % Threshold for residual balancing
+    tau = 1.5;   % Update factor for ρ
 
     [N, T] = size(B);
     M = size(A, 2);
 
+	AtA = A' * A;
+    I = eye(M);
+    Lt = L_t';
+	
     % Initialize variables
     X = zeros(M, T);
     Z1 = zeros(N, T);
@@ -42,67 +47,48 @@ function X = solve_inverse_L1_L1(B, A, L_t, lambda_t, rho, max_iter, tol)
 
     for iter = 1:max_iter
         X_prev = X;
-        Z1_prev = Z1;
-        Z2_prev = Z2;
-
-        % --- Update X using PCG ---
-        rhs = A' * (B - Z1 - U1) + (Z2 + U2) * L_t;
         
-        % Define the PCG function handle (returns a column vector)
-        matvec = @(x) reshape(...
-            A' * (A * reshape(x, M, T)) + rho * reshape(x, M, T), ...
-            [], 1);  % Ensure column vector output
+        % --- X-update: Solve (A'*A + ρI)X = A'(B-Z1-U1) + (Z2+U2)*L_t ---
+        RHS = A' * (B - Z1 - U1) + (Z2 + U2) * L_t;
         
-        % Solve with PCG
-        X_vec = pcg(matvec, rhs(:), tol, 100);  % 100 inner iterations
+        % Use Jacobi preconditioned PCG
+        preconditioner = diag(diag(AtA) + rho;
+        [X_vec, ~] = pcg(@(x) reshape(AtA * reshape(x, M, T) + rho * reshape(x, M, T), ...
+                         RHS(:), 1e-6, 100, diag(1./preconditioner));
         X = reshape(X_vec, M, T);
 
-        % --- Update Z1 (L1 proximal operator) ---
-        residual = B - A * X - U1;
-        Z1 = sign(residual) .* max(abs(residual) - 1/rho, 0);
+        % --- Z-updates (L1 proximal operators) ---
+        Z1 = soft_threshold(B - A * X - U1, 1/rho);
+        Z2 = soft_threshold(X * Lt - U2, lambda_t/rho);
 
-        % --- Update Z2 (L1 proximal operator) ---
-        temporal_residual = X * L_t' - U2;
-        Z2 = sign(temporal_residual) .* max(abs(temporal_residual) - lambda_t/rho, 0);
-
-        % --- Update dual variables ---
+        % --- Dual updates ---
         U1 = U1 + (B - A * X - Z1);
-        U2 = U2 + (X * L_t' - Z2);
+        U2 = U2 + (X * Lt - Z2);
 
-        % --- Compute residuals ---
-        primal_res = norm(B - A * X - Z1, 'fro') + norm(X * L_t' - Z2, 'fro');
-        dual_res = rho * (norm(A' * (Z1 - Z1_prev), 'fro') + norm((Z2 - Z2_prev) * L_t, 'fro'));
-        
-        % --- Adaptive ρ update ---
+        % --- Residuals ---
+        primal_res = norm(B - A * X - Z1, 'fro') + norm(X * Lt - Z2, 'fro');
+        dual_res = rho * norm(A' * (Z1 - Z1_prev) + (Z2 - Z2_prev) * L_t, 'fro');
+
+        % --- Adaptive rho update ---
         if primal_res > mu * dual_res
-            rho = rho * tau;
+            rho = min(rho * tau, max_rho);
             U1 = U1 / tau;
             U2 = U2 / tau;
         elseif dual_res > mu * primal_res
-            rho = rho / tau;
+            rho = max(rho / tau, min_rho);
             U1 = U1 * tau;
             U2 = U2 * tau;
         end
 
-        % Objective value
-        obj = sum(abs(B - A * X), 'all') + lambda_t * sum(abs(X * L_t'), 'all');
+        fprintf('%4d\t%.2e\t%.2e\t%.2e\n', iter, primal_res, dual_res, rho);
 
-        if verbose
-            fprintf('%4d\t%.3e\t%.3e\t%.3e\t%.3e\n', iter, primal_res, dual_res, obj, rho);
-        end
-
-        % --- Check convergence ---
-        if primal_res < tol && dual_res < tol
-            if verbose
-                fprintf('-----------------------------------\n');
-                fprintf('Converged at iteration %d\n', iter);
-            end
+        if max(primal_res, dual_res) < tol
+            fprintf('Converged!\n');
             break;
         end
     end
+end
 
-    if iter == max_iter && verbose
-        fprintf('-----------------------------------\n');
-        fprintf('Maximum iterations reached\n');
-    end
+function Y = soft_threshold(X, threshold)
+    Y = sign(X) .* max(abs(X) - threshold, 0);
 end
