@@ -14,7 +14,7 @@ function X = solve_inverse_L1_L1(B, A, L_t, lambda_t, rho, max_iter, tol)
     % Output:
     %   X: Reconstructed sources (M_sources x T_time)
 
-    % Set default parameters if not provided
+     % Set default parameters if not provided
     if nargin < 5 || isempty(rho), rho = 1.0; end
     if nargin < 6 || isempty(max_iter), max_iter = 100; end
     if nargin < 7 || isempty(tol), tol = 1e-6; end
@@ -57,18 +57,26 @@ function X = solve_inverse_L1_L1(B, A, L_t, lambda_t, rho, max_iter, tol)
 
     for iter = 1:max_iter
         X_prev = X;
-        Z1_prev = Z1;  % Store previous values for dual residual calculation
+        Z1_prev = Z1;
         Z2_prev = Z2;
         
-        % --- X-update: Solve (A'*A + ρI)X = A'(B-Z1-U1) + (Z2+U2)*L_t ---
-        RHS = A' * (B - Z1 - U1) + (Z2 + U2) * L_t;
+        % --- X-update: Solve (A'*A + ρI)X + ρX*L_t*L_t' = RHS ---
+        % RHS = A'*(B-Z1-U1) + ρ*(Z2+U2)*L_t'
+        RHS = A' * (B - Z1 - U1) + rho * (Z2 + U2) * L_t';
         
-        % System matrix function handle
-        matvec = @(x) reshape(AtA * reshape(x, M, T) + rho * reshape(x, M, T), [], 1);
+        % Create function handles for PCG
+        % The system matrix is: (AtA + rho*I)X + rho*X*L_t*L_t'
+        matvec = @(x) reshape(...
+            AtA * reshape(x, M, T) + ...
+            rho * reshape(x, M, T) + ...
+            rho * reshape(x, M, T) * (L_t * L_t'), ...
+            [], 1);
         
-        % Jacobi preconditioner
-        preconditioner = diag(diag(AtA) + rho);
-        precond_func = @(x) preconditioner \ x;
+        % Jacobi preconditioner - diagonal of the system matrix
+        diag_AtA = diag(AtA);
+        diag_LtLt = diag(L_t * L_t');
+        precond_diag = diag_AtA + rho + rho * diag_LtLt';
+        precond_func = @(x) reshape(x, M, T) ./ precond_diag;
         
         % Solve with PCG
         [X_vec, ~] = pcg(matvec, RHS(:), 1e-6, 100, precond_func);
