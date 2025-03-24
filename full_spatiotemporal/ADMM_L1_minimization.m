@@ -18,6 +18,12 @@ function X_reconstructed = ADMM_L1_minimization(B, A, L_s, L_t, lambda_s, lambda
     % Dimensions
     [Nch, T] = size(B);
     Nsources = size(A, 2);
+	
+	% Force sparse storage (even if matrices appear full)
+    A = sparse(double(A));
+    L_s = sparse(double(L_s));
+    L_t = sparse(double(L_t));
+    B = double(B);  % Keep B dense if it's not extremely large
 
     % Initialize variables
     X = zeros(Nsources, T);  % Source activity
@@ -34,9 +40,13 @@ function X_reconstructed = ADMM_L1_minimization(B, A, L_s, L_t, lambda_s, lambda
     Z3_prev = Z3;
 
     % Precompute matrices for X update
-    ATA = A' * A;  % Size: Nsources x Nsources
-    LsTLs = L_s' * L_s;  % Size: Nsources x Nsources
-    LtLtT = L_t * L_t';  % Size: T x T
+	ATA = sparse(A' * A);
+    LsTLs = sparse(L_s' * L_s);
+    LtLtT = sparse(L_t * L_t');
+	
+    %ATA = A' * A;  % Size: Nsources x Nsources
+    %LsTLs = L_s' * L_s;  % Size: Nsources x Nsources
+    %LtLtT = L_t * L_t';  % Size: T x T
 
     % Preconditioner setup (diagonal preconditioner)
     %diag_ATA_LsTLs = diag(ATA + LsTLs); % Nsources x 1 vector
@@ -48,17 +58,15 @@ function X_reconstructed = ADMM_L1_minimization(B, A, L_s, L_t, lambda_s, lambda
     % =============================================
     
     % Spatial preconditioner (incomplete Cholesky)
-    M_spatial_base = ATA + LsTLs;
+    M_spatial_base = sparse(ATA + LsTLs);
+	M_spatial = M_spatial_base + 1e-4*speye(Nsources);
     % Ensure diagonal dominance for ichol
-    M_spatial = M_spatial_base + 1e-6*speye(Nsources);
-    try
-        M_spatial_ichol = ichol(M_spatial);
-    catch
-        % If ichol fails, add more regularization
-        M_spatial_ichol = ichol(M_spatial + 1e-3*speye(Nsources));
-    end
+    opts.droptol = 1e-3;
+    opts.type = 'ict';  % Incomplete Cholesky with threshold
+    M_spatial_ichol = ichol(M_spatial, opts);
+	
     % Temporal preconditioner (regularized LtLtT is pentadiagonal)
-    M_temporal = LtLtT + 1e-6*speye(T);
+    M_temporal = sparse(LtLtT + 1e-4*speye(T));
     
     % Create efficient block-diagonal preconditioner function
     preconditioner = @(x) block_diagonal_solve(M_spatial_ichol, M_temporal, x, Nsources, T);
@@ -82,12 +90,10 @@ function X_reconstructed = ADMM_L1_minimization(B, A, L_s, L_t, lambda_s, lambda
         max_iter_pcg = min(5000, max_iter*10);  % Adjusted max PCG iterations
         [X_vec, flag, relres, pcg_iter] = pcg(...
             @(x) apply_system_matrix_implicit(x, ATA, LsTLs, LtLtT, Nsources, T), ...
-            RHS(:), ...
-            tol, ...
-            max_iter_pcg, ...
-            preconditioner, ...
-            [], ...
-            X(:));
+            full(RHS(:)), % Ensure RHS is dense for pcg
+            tol, 
+            max_iter_pcg, 
+            @preconditioner);
 		
 		if flag ~= 0 && verbose >= 1
             fprintf('PCG warning: flag=%d, relres=%e at iter=%d\n', flag, relres, iter);
@@ -154,8 +160,17 @@ function X_reconstructed = ADMM_L1_minimization(B, A, L_s, L_t, lambda_s, lambda
     X_reconstructed = X;
 end
 % =============================================
-
-function y = block_diagonal_solve(M_spatial, M_temporal, x, Nsources, T)
+function y = preconditioner(x)
+        try
+            % Try the fast block-diagonal solve first
+            y = block_diagonal_solve(M_spatial_ichol, M_temporal, x, Nsources, T);
+        catch
+            % Fallback to diagonal preconditioning if something fails
+            diag_vals = 1 ./ (diag(M_spatial) + kron(ones(T,1), diag(M_temporal)));
+            y = x .* diag_vals;
+        end
+    end
+function y = block_diagonal_solve(M_spatial_ichol, M_temporal, x, Nsources, T)
     % Solves (M_spatial ⊗ I + I ⊗ M_temporal) y = x
     X = reshape(x, [Nsources, T]);
     
@@ -163,7 +178,9 @@ function y = block_diagonal_solve(M_spatial, M_temporal, x, Nsources, T)
     Y = M_temporal' \ X';  % Solves M_temporal' * Y = X' efficiently
     
     % Solve spatial part (using ichol factorization)
-    Y = M_spatial \ Y';
+    % Solve spatial part (forward/backward substitution)
+    Y = M_spatial_ichol \ Y';
+    Y = M_spatial_ichol' \ Y;
     
     y = Y(:);
 end
