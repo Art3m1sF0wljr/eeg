@@ -16,8 +16,10 @@ function X = solve_inverse_L1_L1(B, A, L_t, lambda_t, rho, max_iter, tol)
 
     verbose = true;
 	% Normalize data
-    %A = A / norm(A, 'fro');
-    %B = B / norm(B, 'fro');
+    A = A / norm(A, 'fro');
+    B = B / norm(B, 'fro');
+	mu = 10;  % Threshold for residual balancing
+    tau = 2;  % Update factor for ρ
 
     [N, T] = size(B);
     M = size(A, 2);
@@ -50,10 +52,14 @@ function X = solve_inverse_L1_L1(B, A, L_t, lambda_t, rho, max_iter, tol)
         Z2_prev = Z2;
 
         % --- Update X (least-squares) ---
-        residual_data = B - Z1_prev - U1;
-        residual_temp = Z2_prev + U2;
-        rhs = A' * residual_data + residual_temp * L_t;
-        X = (AtA + rho * I) \ rhs;  % Solve using Cholesky or CG for large M
+        %residual_data = B - Z1_prev - U1;
+        %residual_temp = Z2_prev + U2;
+        %rhs = A' * residual_data + residual_temp * L_t;
+        %X = (AtA + rho * I) \ rhs;  % Solve using Cholesky or CG for large M
+		% --- Update X (PCG solver) ---
+        rhs = A' * (B - Z1 - U1) + (Z2 + U2) * L_t;
+        X = pcg(@(x) (A' * (A * reshape(x, M, T)) + rho * reshape(x, M, T), rhs(:), tol, max_iter);
+        X = reshape(X, M, T);
 
         % --- Update Z1 (data term, L1 proximal) ---
         residual = B - A * X - U1;
@@ -71,11 +77,16 @@ function X = solve_inverse_L1_L1(B, A, L_t, lambda_t, rho, max_iter, tol)
         primal_res = norm(B - A * X - Z1, 'fro') + norm(X * L_t' - Z2, 'fro');
         dual_res = rho * (norm(A' * (Z1 - Z1_prev), 'fro') + norm((Z2 - Z2_prev) * L_t, 'fro'));
 		
-		if primal_res > 10 * dual_res
-			rho = rho * 1.5;   % Increase penalty if primal res is too high
-		elseif dual_res > 10 * primal_res
-			rho = rho / 1.5;   % Decrease penalty if dual res is too high
-		end
+		% --- Adaptive ρ update ---
+        if primal_res > mu * dual_res
+            rho = rho * tau;
+            U1 = U1 / tau;  % Scale dual variables to maintain convergence
+            U2 = U2 / tau;
+        elseif dual_res > mu * primal_res
+            rho = rho / tau;
+            U1 = U1 * tau;
+            U2 = U2 * tau;
+        end
         
         % Objective: ||B - AX||_1 + lambda_t ||X L_t^T||_1
         obj = sum(abs(B - A * X), 'all') + lambda_t * sum(abs(X * L_t'), 'all');
