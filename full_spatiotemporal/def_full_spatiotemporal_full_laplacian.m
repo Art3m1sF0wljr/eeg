@@ -74,6 +74,7 @@ rho = 1.0;      % ADMM penalty parameter
 dipole_positions = DipoleField.pos(good_dipoles, :); % N_dipoles x 3 matrix
 sigma = 10; % Scaling parameter
 neighborhood_threshold = 10; 
+verbose = 2;  %0,1,2
 L_s = construct_spatial_laplacian(dipole_positions, sigma, neighborhood_threshold);
 
 % Temporal smoothness matrix (T x T)
@@ -81,7 +82,9 @@ L_t = diag(ones(T-1,1), 1) + diag(ones(T-1,1), -1) - 2*eye(T); % Temporal smooth
 
 % Solve the inverse problem
 %J_reconstructed = solve_inverse_problem(B, A, L_s, L_t, lambda_s, lambda_t, T, tol, max_iter);
-J_reconstructed = ADMM_L1_minimization(B, A, L_s, L_t, lambda_s, lambda_t, rho, max_iter, tol);
+%J_reconstructed = ADMM_L1_minimization(B, A, L_s, L_t, lambda_s, lambda_t, rho, max_iter, tol, verbose);
+J_reconstructed = ADMM_L1_minimization_GPU(B, A, L_s, L_t, lambda_s, lambda_t, rho, max_iter, tol, verbose);
+
 % Display results
 % Plot for the inverse problem
 figure;
