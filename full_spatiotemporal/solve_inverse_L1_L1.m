@@ -28,6 +28,8 @@ function X = solve_inverse_L1L1(B, A, L_t, lambda_t, rho, max_iter, tol)
 
     for iter = 1:max_iter
         X_prev = X;
+        Z1_prev = Z1;
+        Z2_prev = Z2;
 
         % --- Update X (least-squares) ---
         rhs = A' * (B - Z1 - U1) + (Z2 + U2) * L_t;
