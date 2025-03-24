@@ -63,9 +63,9 @@ end
 
 
 % Solve the inverse problem using the provided function
-lambda_s = 0.1; % Spatial regularization parameter 0.1e-8 for L2
-lambda_t = 0.1; % Temporal regularization parameter 0.1e-8 for L2
-tol = 1e-4; % Convergence tolerance  3e-5 for L2
+lambda_s = 0.1e-8; % Spatial regularization parameter 0.1e-8 for L2
+lambda_t = 0.1e-8; % Temporal regularization parameter 0.1e-8 for L2
+tol = 1e-3; % Convergence tolerance  3e-5 for L2
 max_iter = 1500; % Maximum iterations
 rho = 1.0;      % ADMM penalty parameter
 
@@ -81,9 +81,9 @@ L_s = construct_spatial_laplacian(dipole_positions, sigma, neighborhood_threshol
 L_t = diag(ones(T-1,1), 1) + diag(ones(T-1,1), -1) - 2*eye(T); % Temporal smoothness matrix, approximates second derivative thru finite differences
 
 % Solve the inverse problem
-%J_reconstructed = solve_inverse_problem(B, A, L_s, L_t, lambda_s, lambda_t, T, tol, max_iter);
+J_reconstructed = solve_inverse_problem(B, A, L_s, L_t, lambda_s, lambda_t, T, tol, max_iter);
 %J_reconstructed = ADMM_L1_minimization(B, A, L_s, L_t, lambda_s, lambda_t, rho, max_iter, tol, verbose);
-J_reconstructed = ADMM_L1_minimization_GPU(B, A, L_s, L_t, lambda_s, lambda_t, rho, max_iter, tol, verbose);
+%J_reconstructed = ADMM_L1_minimization_GPU(B, A, L_s, L_t, lambda_s, lambda_t, rho, max_iter, tol, verbose);
 
 % Display results
 % Plot for the inverse problem
