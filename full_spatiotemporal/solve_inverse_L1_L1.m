@@ -1,4 +1,7 @@
+
 function X = solve_inverse_L1_L1(B, A, L_t, lambda_t, rho, max_iter, tol)
+%min​{∥B−AX∥1​+λt​∥XLtT​∥1​}
+%(X,Z1​,Z2​,U1​,U2​)=∥Z1​∥1​+λt​∥Z2​∥1​+2ρ​(∥Z1​−B+AX+U1​∥22​+∥Z2​−XLtT​+U2​∥22​)
     % Inputs:
     %   B: EEG data (N_channels x T_time)
     %   A: Lead field matrix (N_channels x M_sources)
@@ -11,6 +14,11 @@ function X = solve_inverse_L1_L1(B, A, L_t, lambda_t, rho, max_iter, tol)
     % Output:
     %   X: Reconstructed sources (M_sources x T_time)
 
+    % Set default parameters if not provided
+    if nargin < 5 || isempty(rho), rho = 1.0; end
+    if nargin < 6 || isempty(max_iter), max_iter = 100; end
+    if nargin < 7 || isempty(tol), tol = 1e-6; end
+    
     verbose = true;
     % Normalize problem
     scale_A = norm(A, 'fro');
@@ -20,14 +28,16 @@ function X = solve_inverse_L1_L1(B, A, L_t, lambda_t, rho, max_iter, tol)
     % Adaptive ρ parameters
     mu = 5;  % Threshold for residual balancing
     tau = 1.5;   % Update factor for ρ
+    max_rho = 10;  % Maximum value for rho
+    min_rho = 1e-2; % Minimum value for rho
 
     [N, T] = size(B);
     M = size(A, 2);
 
-	AtA = A' * A;
+    AtA = A' * A;
     I = eye(M);
     Lt = L_t';
-	
+    
     % Initialize variables
     X = zeros(M, T);
     Z1 = zeros(N, T);
@@ -47,6 +57,8 @@ function X = solve_inverse_L1_L1(B, A, L_t, lambda_t, rho, max_iter, tol)
 
     for iter = 1:max_iter
         X_prev = X;
+        Z1_prev = Z1;  % Store previous values for dual residual calculation
+        Z2_prev = Z2;
         
         % --- X-update: Solve (A'*A + ρI)X = A'(B-Z1-U1) + (Z2+U2)*L_t ---
         RHS = A' * (B - Z1 - U1) + (Z2 + U2) * L_t;
@@ -55,11 +67,11 @@ function X = solve_inverse_L1_L1(B, A, L_t, lambda_t, rho, max_iter, tol)
         matvec = @(x) reshape(AtA * reshape(x, M, T) + rho * reshape(x, M, T), [], 1);
         
         % Jacobi preconditioner
-        preconditioner = diag(diag(AtA)) + rho);
-        precond_matrix = diag(1./diag(preconditioner));
+        preconditioner = diag(diag(AtA) + rho);
+        precond_func = @(x) preconditioner \ x;
         
         % Solve with PCG
-        [X_vec, ~] = pcg(matvec, RHS(:), 1e-6, 100, [], [], precond_matrix);
+        [X_vec, ~] = pcg(matvec, RHS(:), 1e-6, 100, precond_func);
         X = reshape(X_vec, M, T);
 
         % --- Z-updates (L1 proximal operators) ---
@@ -72,7 +84,7 @@ function X = solve_inverse_L1_L1(B, A, L_t, lambda_t, rho, max_iter, tol)
 
         % --- Residuals ---
         primal_res = norm(B - A * X - Z1, 'fro') + norm(X * Lt - Z2, 'fro');
-        dual_res = rho * norm(A' * (Z1 - Z1_prev) + (Z2 - Z2_prev) * L_t, 'fro');
+        dual_res = rho * (norm(A' * (Z1 - Z1_prev), 'fro') + norm((Z2 - Z2_prev) * L_t, 'fro'));
 
         % --- Adaptive rho update ---
         if primal_res > mu * dual_res
@@ -85,10 +97,14 @@ function X = solve_inverse_L1_L1(B, A, L_t, lambda_t, rho, max_iter, tol)
             U2 = U2 * tau;
         end
 
-        fprintf('%4d\t%.2e\t%.2e\t%.2e\n', iter, primal_res, dual_res, rho);
+        if verbose
+            fprintf('%4d\t%.2e\t%.2e\t%.2e\n', iter, primal_res, dual_res, rho);
+        end
 
         if max(primal_res, dual_res) < tol
-            fprintf('Converged!\n');
+            if verbose
+                fprintf('Converged!\n');
+            end
             break;
         end
     end
