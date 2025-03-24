@@ -17,8 +17,8 @@ function X = solve_inverse_L1_L1(B, A, L_t, lambda_t, rho, max_iter, tol)
     B = B / norm(B, 'fro');
     
     % Adaptive ρ parameters
-    mu = 10;  % Threshold for residual balancing
-    tau = 2;   % Update factor for ρ
+    mu = 2;  % Threshold for residual balancing
+    tau = 1;   % Update factor for ρ
 
     [N, T] = size(B);
     M = size(A, 2);
