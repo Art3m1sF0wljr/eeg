@@ -1,4 +1,6 @@
-function X = solve_inverse_L1L1(B, A, L_t, lambda_t, rho, max_iter, tol)
+function X = solve_inverse_L1_L1(B, A, L_t, lambda_t, rho, max_iter, tol)
+%min​{∥B−AX∥1​+λt​∥XLtT​∥1​}
+%L(X,Z1​,Z2​,U1​,U2​)=∥Z1​∥1​+λt​∥Z2​∥1​+2ρ​(∥Z1​−B+AX+U1​∥22​+∥Z2​−XLtT​+U2​∥22​)
     % Inputs:
     %   B: EEG data (N_channels x T_time)
     %   A: Lead field matrix (N_channels x M_sources)
@@ -7,9 +9,13 @@ function X = solve_inverse_L1L1(B, A, L_t, lambda_t, rho, max_iter, tol)
     %   rho: ADMM penalty parameter (default: 1.0)
     %   max_iter: Maximum iterations (default: 100)
     %   tol: Convergence tolerance (default: 1e-6)
+    %   verbose: Print progress (true/false, default: true)
     %
     % Output:
     %   X: Reconstructed sources (M_sources x T_time)
+
+    verbose = true;
+    
 
     [N, T] = size(B);
     M = size(A, 2);
@@ -26,13 +32,25 @@ function X = solve_inverse_L1L1(B, A, L_t, lambda_t, rho, max_iter, tol)
     LtLt = L_t * L_t';
     I = eye(M);
 
+    if verbose
+        fprintf('ADMM optimization for L1-L1 problem\n');
+        fprintf('===================================\n');
+        fprintf('N = %d (channels), M = %d (sources), T = %d (time points)\n', N, M, T);
+        fprintf('lambda_t = %.3f, rho = %.3f, max_iter = %d, tol = %.1e\n', lambda_t, rho, max_iter, tol);
+        fprintf('-----------------------------------\n');
+        fprintf('Iter\tPrimal Res\tDual Res\tObjective\n');
+        fprintf('-----------------------------------\n');
+    end
+
     for iter = 1:max_iter
         X_prev = X;
         Z1_prev = Z1;
         Z2_prev = Z2;
 
         % --- Update X (least-squares) ---
-        rhs = A' * (B - Z1 - U1) + (Z2 + U2) * L_t;
+        residual_data = B - Z1_prev - U1;
+        residual_temp = Z2_prev + U2;
+        rhs = A' * residual_data + residual_temp * L_t;
         X = (AtA + rho * I) \ rhs;  % Solve using Cholesky or CG for large M
 
         % --- Update Z1 (data term, L1 proximal) ---
@@ -47,13 +65,29 @@ function X = solve_inverse_L1L1(B, A, L_t, lambda_t, rho, max_iter, tol)
         U1 = U1 + (B - A * X - Z1);
         U2 = U2 + (X * L_t' - Z2);
 
-        % --- Check convergence ---
-        primal_residual = norm(B - A * X - Z1, 'fro') + norm(X * L_t' - Z2, 'fro');
-        dual_residual = rho * (norm(A' * (Z1 - Z1_prev), 'fro') + norm((Z2 - Z2_prev) * L_t, 'fro'));
+        % --- Compute residuals and objective ---
+        primal_res = norm(B - A * X - Z1, 'fro') + norm(X * L_t' - Z2, 'fro');
+        dual_res = rho * (norm(A' * (Z1 - Z1_prev), 'fro') + norm((Z2 - Z2_prev) * L_t, 'fro'));
+        
+        % Objective: ||B - AX||_1 + lambda_t ||X L_t^T||_1
+        obj = sum(abs(B - A * X), 'all') + lambda_t * sum(abs(X * L_t'), 'all');
 
-        if primal_residual < tol && dual_residual < tol
-            fprintf('Converged at iteration %d\n', iter);
+        if verbose
+            fprintf('%4d\t%.3e\t%.3e\t%.3e\n', iter, primal_res, dual_res, obj);
+        end
+
+        % --- Check convergence ---
+        if primal_res < tol && dual_res < tol
+            if verbose
+                fprintf('-----------------------------------\n');
+                fprintf('Converged at iteration %d\n', iter);
+            end
             break;
         end
+    end
+
+    if iter == max_iter && verbose
+        fprintf('-----------------------------------\n');
+        fprintf('Maximum iterations reached\n');
     end
 end
