@@ -39,12 +39,11 @@ function X_reconstructed = ADMM_L1_minimization(B, A, L_s, L_t, lambda_s, lambda
     LtLtT = L_t * L_t';  % Size: T x T
 
     % Preconditioner setup (diagonal preconditioner)
-    diag_ATA_LsTLs = diag(ATA + LsTLs); % Diagonal of ATA + LsTLs (Nsources x 1)
-    diag_LtLtT = diag(LtLtT); % Diagonal of LtLtT (T x 1)
+    diag_ATA_LsTLs = diag(ATA + LsTLs); % Nsources x 1 vector
+    diag_LtLtT = diag(LtLtT); % T x 1 vector
     
-    % Create full diagonal preconditioner matrix
-    M_diag = kron(speye(T), diag_ATA_LsTLs) + kron(diag_LtLtT, speye(Nsources));
-    preconditioner = @(x) M_diag \ x; % Preconditioner solve operation
+    % Create efficient diagonal preconditioner function
+    preconditioner = @(x) x ./ (kron(ones(T,1), diag_ATA_LsTLs) + kron(diag_LtLtT, ones(Nsources,1)));
 
     % ADMM iterations
     for iter = 1:max_iter
