@@ -27,13 +27,15 @@ function X_reconstructed = ADMM_L1_minimization(B, A, L_s, L_t, lambda_s, lambda
 
     % Initialize variables
     X = zeros(Nsources, T);  % Source activity
-    Z1 = zeros(Nch, T);      % Auxiliary variable for data fidelity
-    Z2 = zeros(Nsources, T); % Auxiliary variable for spatial regularization
-    Z3 = zeros(Nsources, T); % Auxiliary variable for temporal regularization
-    U1 = zeros(Nch, T);      % Dual variable for data fidelity
-    U2 = zeros(Nsources, T); % Dual variable for spatial regularization
-    U3 = zeros(Nsources, T); % Dual variable for temporal regularization
-
+    %Z1 = zeros(Nch, T);      % Auxiliary variable for data fidelity
+    %Z2 = zeros(Nsources, T); % Auxiliary variable for spatial regularization
+    %Z3 = zeros(Nsources, T); % Auxiliary variable for temporal regularization
+    %U1 = zeros(Nch, T);      % Dual variable for data fidelity
+    %U2 = zeros(Nsources, T); % Dual variable for spatial regularization
+    %U3 = zeros(Nsources, T); % Dual variable for temporal regularization
+    [Z1, Z2, Z3] = deal(zeros(size(B)), zeros(Nsources, T), zeros(Nsources, T));
+    [U1, U2, U3] = deal(zeros(size(B)), zeros(Nsources, T), zeros(Nsources, T));
+	
     % Store previous Z values for dual residual calculation
     Z1_prev = Z1;
     Z2_prev = Z2;
@@ -58,11 +60,18 @@ function X_reconstructed = ADMM_L1_minimization(B, A, L_s, L_t, lambda_s, lambda
     % =============================================
     
     % Spatial preconditioner (incomplete Cholesky)
-    M_spatial_base = sparse(ATA + LsTLs);
-	M_spatial = M_spatial_base + 1e-4*speye(Nsources);
-    % Ensure diagonal dominance for ichol
-    opts.droptol = 1e-3;
-    opts.type = 'ict';  % Incomplete Cholesky with threshold
+    % Ensure positive definiteness
+    M_spatial = ATA + LsTLs;
+    min_eig = eigs(M_spatial, 1, 'smallestreal');
+    if min_eig <= 0
+        reg_param = abs(min_eig) + 1e-3;
+        M_spatial = M_spatial + reg_param*speye(Nsources);
+    end
+    
+    % 2. Use modified ichol with increased diagonal compensation
+    opts.diagcomp = 1e-3;  % Additional diagonal boost
+    opts.type = 'ict';
+    opts.droptol = 1e-2;
     M_spatial_ichol = ichol(M_spatial, opts);
 	
     % Temporal preconditioner (regularized LtLtT is pentadiagonal)
@@ -162,12 +171,17 @@ end
 % =============================================
 function y = preconditioner(x)
         try
-            % Try the fast block-diagonal solve first
-            y = block_diagonal_solve(M_spatial_ichol, M_temporal, x, Nsources, T);
+            X_mat = reshape(x, [Nsources, T]);
+            % Temporal solve (exploits banded structure)
+            temp = M_temporal' \ X_mat';
+            % Spatial solve
+            y = M_spatial_ichol \ temp';
+            y = M_spatial_ichol' \ y;
+            y = y(:);
         catch
-            % Fallback to diagonal preconditioning if something fails
-            diag_vals = 1 ./ (diag(M_spatial) + kron(ones(T,1), diag(M_temporal)));
-            y = x .* diag_vals;
+            % Fallback to Jacobi preconditioner
+            diag_precond = 1 ./ (diag(M_spatial) + kron(ones(T,1), diag(M_temporal)));
+            y = x .* diag_precond;
         end
     end
 function y = block_diagonal_solve(M_spatial_ichol, M_temporal, x, Nsources, T)
