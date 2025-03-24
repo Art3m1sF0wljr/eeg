@@ -58,7 +58,7 @@ function X = solve_inverse_L1_L1(B, A, L_t, lambda_t, rho, max_iter, tol)
         %X = (AtA + rho * I) \ rhs;  % Solve using Cholesky or CG for large M
 		% --- Update X (PCG solver) ---
         rhs = A' * (B - Z1 - U1) + (Z2 + U2) * L_t;
-        X = pcg(@(x) (A' * (A * reshape(x, M, T)) + rho * reshape(x, M, T), rhs(:), tol, max_iter);
+        X = pcg(@(x) (A' * (A * reshape(x, M, T)) + rho * reshape(x, M, T), rhs(:), tol, max_iter));
         X = reshape(X, M, T);
 
         % --- Update Z1 (data term, L1 proximal) ---
