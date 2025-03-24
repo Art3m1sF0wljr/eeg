@@ -63,8 +63,8 @@ end
 
 
 % Solve the inverse problem using the provided function
-lambda_s = 0.1e-8; % Spatial regularization parameter 0.1e-8 for L2
-lambda_t = 0.1e-8; % Temporal regularization parameter 0.1e-8 for L2
+lambda_s = 0.1; % Spatial regularization parameter 0.1e-8 for L2
+lambda_t = 0.1; % Temporal regularization parameter 0.1e-8 for L2
 tol = 1e-3; % Convergence tolerance  3e-5 for L2
 max_iter = 1500; % Maximum iterations
 rho = 1.0;      % ADMM penalty parameter
