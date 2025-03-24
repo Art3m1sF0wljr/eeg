@@ -81,7 +81,7 @@ function X = solve_inverse_L1_L1(B, A, L_t, lambda_t, rho, max_iter, tol)
         obj = sum(abs(B - A * X), 'all') + lambda_t * sum(abs(X * L_t'), 'all');
 
         if verbose
-            fprintf('%4d\t%.3e\t%.3e\t%.3e\n', iter, primal_res, dual_res, obj);
+            fprintf('%4d\t%.3e\t%.3e\t%.3e\t%.3e\n', iter, primal_res, dual_res, obj,rho);
         end
 
         % --- Check convergence ---
