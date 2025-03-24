@@ -15,7 +15,9 @@ function X = solve_inverse_L1_L1(B, A, L_t, lambda_t, rho, max_iter, tol)
     %   X: Reconstructed sources (M_sources x T_time)
 
     verbose = true;
-    
+	% Normalize data
+    %A = A / norm(A, 'fro');
+    %B = B / norm(B, 'fro');
 
     [N, T] = size(B);
     M = size(A, 2);
@@ -68,6 +70,12 @@ function X = solve_inverse_L1_L1(B, A, L_t, lambda_t, rho, max_iter, tol)
         % --- Compute residuals and objective ---
         primal_res = norm(B - A * X - Z1, 'fro') + norm(X * L_t' - Z2, 'fro');
         dual_res = rho * (norm(A' * (Z1 - Z1_prev), 'fro') + norm((Z2 - Z2_prev) * L_t, 'fro'));
+		
+		if primal_res > 10 * dual_res
+			rho = rho * 2;   % Increase penalty if primal res is too high
+		elseif dual_res > 10 * primal_res
+			rho = rho / 2;   % Decrease penalty if dual res is too high
+		end
         
         % Objective: ||B - AX||_1 + lambda_t ||X L_t^T||_1
         obj = sum(abs(B - A * X), 'all') + lambda_t * sum(abs(X * L_t'), 'all');
