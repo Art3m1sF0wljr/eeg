@@ -85,10 +85,10 @@ function X = solve_inverse_L1_L1(B, A, L_t, lambda_t, rho, max_iter, tol)
         
         % --- Adaptive rho ---
         if primal_res > 10 * dual_res
-            rho_new = rho * 2;
+            rho_new = rho * 1.1;
             rho_changed = true;
         elseif dual_res > 10 * primal_res
-            rho_new = rho / 2;
+            rho_new = rho / 1.1;
             rho_changed = true;
         else
             rho_new = rho;

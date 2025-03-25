@@ -43,9 +43,9 @@ activation_values = rand(active_sources, 1); % Random activation values for the 
 
 % Generate EEG data using the function 1 or 2
 % for constant_B optimal threshold for inverse is 0.8
-[B, Xsimulated] = smootly_varying_B_numerical_center(A, good_dipoles, T, active_sources, neighborhood_size, base_probability, space_smooth_factor);
+%[B, Xsimulated] = smootly_varying_B_numerical_center(A, good_dipoles, T, active_sources, neighborhood_size, base_probability, space_smooth_factor);
 %[B, Xsimulated] = constant_B(A, active_source_indices, activation_values, T);
-%[B, Xsimulated] = professor_generated_B(A, good_dipoles, T, active_sources, space_smooth_factor);
+[B, Xsimulated] = professor_generated_B(A, good_dipoles, T, active_sources, space_smooth_factor);
 
 % Display EEG scalp potentials at the first time point
 F = scatteredInterpolant(elec.elecpos(:,1), elec.elecpos(:,2), elec.elecpos(:,3), B(:, 1), 'natural');
@@ -65,9 +65,9 @@ end
 
 % Solve the inverse problem using the provided function
 lambda_s = 0.1; % Spatial regularization parameter 0.1e-8 for L2
-lambda_t = 0.1e-1; % Temporal regularization parameter 0.1e-8 for L2
+lambda_t = 0.1e-2; % Temporal regularization parameter 0.1e-8 for L2
 tol = 1e-3; % Convergence tolerance  3e-5 for L2
-max_iter = 1500; % Maximum iterations
+max_iter = 500; % Maximum iterations
 rho = 50;      % ADMM penalty parameter
 
 % Spatial Laplacian (Nsources x Nsources)
@@ -79,7 +79,8 @@ verbose = 1;  %0,1,2
 L_s = construct_spatial_laplacian(dipole_positions, sigma, neighborhood_threshold);
 
 % Temporal smoothness matrix (T x T)
-L_t = diag(ones(T-1,1), 1) + diag(ones(T-1,1), -1) - 2*eye(T); % Temporal smoothness matrix, approximates second derivative thru finite differences
+%L_t = diag(ones(T-1,1), 1) + diag(ones(T-1,1), -1) - 2*eye(T); % Temporal smoothness matrix, approximates second derivative thru finite differences
+L_t = diag(-ones(T,1), 0) + diag(ones(T-1,1), 1); %first derivative matrix
 
 % Solve the inverse problem
 %J_reconstructed = solve_inverse_problem(B, A, L_s, L_t, lambda_s, lambda_t, T, tol, max_iter)% min_{X} {​∥B−A⋅X∥_{2}^{2}​+λ_s​∥L_s​⋅X∥_{2}^{2}​+λ_t​∥X⋅L_{t}^{T}∥​_{2}^{2}}
