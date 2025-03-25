@@ -44,8 +44,8 @@ activation_values = rand(active_sources, 1); % Random activation values for the 
 % Generate EEG data using the function 1 or 2
 % for constant_B optimal threshold for inverse is 0.8
 %[B, Xsimulated] = smootly_varying_B_numerical_center(A, good_dipoles, T, active_sources, neighborhood_size, base_probability, space_smooth_factor);
-[B, Xsimulated] = constant_B(A, active_source_indices, activation_values, T);
-%[B, Xsimulated] = professor_generated_B(A, good_dipoles, T, active_sources, space_smooth_factor);
+%[B, Xsimulated] = constant_B(A, active_source_indices, activation_values, T);
+[B, Xsimulated] = professor_generated_B(A, good_dipoles, T, active_sources, space_smooth_factor);
 
 % Display EEG scalp potentials at the first time point
 F = scatteredInterpolant(elec.elecpos(:,1), elec.elecpos(:,2), elec.elecpos(:,3), B(:, 1), 'natural');
@@ -66,10 +66,10 @@ end
 % Solve the inverse problem using the provided function
 lambda_s = 0.1e-3; % Spatial regularization parameter 0.1e-8 for L2, 0.1e-1 for L1_v0
 lambda_t = 0.1e-3; % Temporal regularization parameter 0.1e-8 for L2, 0.1e-1 for L1_v0
-lambda = 0.1e-3; % ‖X‖₁ regularization parameter
-tol = 3.6e-4; % Convergence tolerance  3e-5 for L2, 3e-3 for L1_v0
-max_iter = 1500; % Maximum iterations
-rho = 50;      % ADMM penalty parameter 50 for L1    
+lambda = 0.1e-8; % ‖X‖₁ regularization parameter
+tol = 1e-4; % Convergence tolerance  3e-5 for L2, 3e-3 for L1_v0
+max_iter = 100; % Maximum iterations
+rho = 1e-1;      % ADMM penalty parameter 50 for L1    
 
 % Spatial Laplacian (Nsources x Nsources)
 % Assuming dipole_positions is a Nsources x 3 matrix containing the positions of the dipoles
@@ -85,16 +85,19 @@ L_t = diag(-ones(T,1), 0) + diag(ones(T-1,1), 1); %first derivative matrix
 
 % Solve the inverse problem
 %J_reconstructed = solve_inverse_problem(B, A, L_s, L_t, lambda_s, lambda_t, T, tol, max_iter);% min_{X} {​∥B−A⋅X∥_{2}^{2}​+λ_s​∥L_s​⋅X∥_{2}^{2}​+λ_t​∥X⋅L_{t}^{T}∥​_{2}^{2}}
+J_reconstructed = solver_L1(B, A, lambda, rho, max_iter, tol); %min_{x} {‖B-AX‖₁ + λ‖X‖₁}
+
 %J_reconstructed = ADMM_L1_minimization(B, A, L_s, L_t, lambda_s, lambda_t, rho, max_iter, tol, verbose)% min_{X} {​∥B−A⋅X∥_{1}​+λ_s​∥L_s​⋅X∥_{1}​+λ_t​∥X⋅L_{t}^{T}∥​_{1}}, not quite working
 %J_reconstructed = ADMM_L1_minimization_GPU(B, A, L_s, L_t, lambda_s, lambda_t, rho, max_iter, tol, verbose)%same as abobe but with gpu features
 %J_reconstructed = solve_inverse_L1_L1_v0(B, A, L_t, lambda_t, rho, max_iter, tol) %min_{X} {​∥B−A⋅X∥_{1}​+λ_t​∥X⋅L_{t}^{T}∥​_{1}}
 %J_reconstructed = solve_inverse_L1_L1(B, A, L_t, lambda_t, rho, max_iter, tol) %min_{X} {​∥B−A⋅X∥_{1}​+λ_t​∥X⋅L_{t}^{T}∥​_{1}} 
 %J_reconstructed = solve_inverse_L1_L1_spatial_v0(B, A, L_s, lambda_s, rho, max_iter, tol); %min_{X} {​∥B−A⋅X∥_{1}​+λ_s​∥L_s⋅X∥​_{1}}
 %J_reconstructed = solve_inverse_L1_L1_spatial_v0_old(B, A, L_s, lambda_s, rho, max_iter, tol); %min_{X} {​∥B−A⋅X∥_{1}​+λ_s​∥L_s⋅X∥​_{1}}
-J_reconstructed = stabilized_solver_L1_L1_L1(B, A, L_s, lambda_s, lambda, rho, max_iter, tol); %min_{x} {‖B-AX‖₁ + λₛ‖LₛX‖₁ + λ‖X‖₁}
+%J_reconstructed = stabilized_solver_L1_L1_L1(B, A, L_s, lambda_s, lambda, rho, max_iter, tol); %min_{x} {‖B-AX‖₁ + λₛ‖LₛX‖₁ + λ‖X‖₁}
+
+toc
 
 % Display results
-toc
 figure;
 hold on;
 
@@ -105,7 +108,7 @@ xlabel('x'); ylabel('y'); zlabel('z'); title('3D Dipole Positions with Active So
 axis equal; grid on;
 view(3);
 % Define a threshold for active dipoles
-threshold = 0.8 * max(J_reconstructed(:)); % Adjust threshold as needed
+threshold = 0.7 * max(J_reconstructed(:)); % Adjust threshold as needed
 
 % Map source indices to dipole indices
 % Since each dipole has 3 orientations, divide by 3 and round up
@@ -144,6 +147,78 @@ for t = 1:T
     
     % Pause to visualize the change
     pause(0.1*100/T); % Adjust pause duration as needed
+end
+hold off;
+
+% Plot all dipoles in 3D percentile (the inverse problem ones)
+figure;
+hold on;
+all_dipoles = DipoleField.pos(good_dipoles, :);
+scatter3(all_dipoles(:, 1), all_dipoles(:, 2), all_dipoles(:, 3), 5, 'k', 'filled');
+axis equal; grid on; view(3);
+
+active_dipoles_prev = [];
+percentile = 99.9; % 95: Top 5% active
+
+for t = 1:T
+    % Compute dynamic threshold
+    threshold = prctile(J_reconstructed(:, t), percentile);
+    
+    % Find active dipoles
+    active_sources = find(J_reconstructed(:, t) > threshold);
+    active_dipoles = unique(ceil(active_sources / 3));
+    
+    % Reset previous actives to black
+    if ~isempty(active_dipoles_prev)
+        inactive_dipoles = setdiff(active_dipoles_prev, active_dipoles);
+        scatter3(all_dipoles(inactive_dipoles, 1), all_dipoles(inactive_dipoles, 2), ...
+                all_dipoles(inactive_dipoles, 3), 5, 'k', 'filled');
+    end
+    
+    % Highlight current actives in red
+    scatter3(all_dipoles(active_dipoles, 1), all_dipoles(active_dipoles, 2), ...
+            all_dipoles(active_dipoles, 3), 5, 'r', 'filled');
+    
+    active_dipoles_prev = active_dipoles;
+    title(sprintf(' t=%d percentile of Active Dipoles at (Threshold: %.2f)', t, threshold));
+    pause(0.1*100/T);
+end
+hold off;
+% the highest k sources, where k is 
+figure;
+hold on;
+all_dipoles = DipoleField.pos(good_dipoles, :);
+scatter3(all_dipoles(:, 1), all_dipoles(:, 2), all_dipoles(:, 3), 5, 'k', 'filled');
+axis equal; grid on; view(3);
+
+k = active_sources; % Highlight top 10 most active sources at each time step
+active_dipoles_prev = [];
+
+for t = 1:T
+    % Get top k sources at time t (sorted in descending order)
+    [~, sorted_indices] = sort(J_reconstructed(:, t),k);
+    top_k_sources = sorted_indices(1:k);
+    
+    % Map source indices to dipole indices (if 3 orientations per dipole)
+    top_k_dipoles = unique(ceil(top_k_sources / 3));
+    
+    % Reset previous actives to black
+    if ~isempty(active_dipoles_prev)
+        scatter3(all_dipoles(active_dipoles_prev, 1), ...
+                all_dipoles(active_dipoles_prev, 2), ...
+                all_dipoles(active_dipoles_prev, 3), 5, 'k', 'filled');
+    end
+    
+    % Highlight current top-k dipoles in red
+    scatter3(all_dipoles(top_k_dipoles, 1), ...
+            all_dipoles(top_k_dipoles, 2), ...
+            all_dipoles(top_k_dipoles, 3), 5, 'r', 'filled');
+    
+    % Update previous actives
+    active_dipoles_prev = top_k_dipoles;
+    
+    title(sprintf('Top %d Dipoles at t=%d/%d', k, t, T));
+    pause(0.1*100/T); % Adjust speed
 end
 hold off;
 
