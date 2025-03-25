@@ -44,8 +44,8 @@ activation_values = rand(active_sources, 1); % Random activation values for the 
 % Generate EEG data using the function 1 or 2
 % for constant_B optimal threshold for inverse is 0.8
 %[B, Xsimulated] = smootly_varying_B_numerical_center(A, good_dipoles, T, active_sources, neighborhood_size, base_probability, space_smooth_factor);
-%[B, Xsimulated] = constant_B(A, active_source_indices, activation_values, T);
-[B, Xsimulated] = professor_generated_B(A, good_dipoles, T, active_sources, space_smooth_factor);
+[B, Xsimulated] = constant_B(A, active_source_indices, activation_values, T);
+%[B, Xsimulated] = professor_generated_B(A, good_dipoles, T, active_sources, space_smooth_factor);
 
 % Display EEG scalp potentials at the first time point
 F = scatteredInterpolant(elec.elecpos(:,1), elec.elecpos(:,2), elec.elecpos(:,3), B(:, 1), 'natural');
@@ -64,9 +64,10 @@ end
 
 
 % Solve the inverse problem using the provided function
-lambda_s = 0.1e-8; % Spatial regularization parameter 0.1e-8 for L2, 0.1e-1 for L1_v0
-lambda_t = 0.1e-1; % Temporal regularization parameter 0.1e-8 for L2, 0.1e-1 for L1_v0
-tol = 3e-5; % Convergence tolerance  3e-5 for L2, 3e-3 for L1_v0
+lambda_s = 0.1e-3; % Spatial regularization parameter 0.1e-8 for L2, 0.1e-1 for L1_v0
+lambda_t = 0.1e-3; % Temporal regularization parameter 0.1e-8 for L2, 0.1e-1 for L1_v0
+lambda = 0.1e-3; % ‖X‖₁ regularization parameter
+tol = 3.6e-4; % Convergence tolerance  3e-5 for L2, 3e-3 for L1_v0
 max_iter = 1500; % Maximum iterations
 rho = 50;      % ADMM penalty parameter 50 for L1    
 
@@ -87,9 +88,10 @@ L_t = diag(-ones(T,1), 0) + diag(ones(T-1,1), 1); %first derivative matrix
 %J_reconstructed = ADMM_L1_minimization(B, A, L_s, L_t, lambda_s, lambda_t, rho, max_iter, tol, verbose)% min_{X} {​∥B−A⋅X∥_{1}​+λ_s​∥L_s​⋅X∥_{1}​+λ_t​∥X⋅L_{t}^{T}∥​_{1}}, not quite working
 %J_reconstructed = ADMM_L1_minimization_GPU(B, A, L_s, L_t, lambda_s, lambda_t, rho, max_iter, tol, verbose)%same as abobe but with gpu features
 %J_reconstructed = solve_inverse_L1_L1_v0(B, A, L_t, lambda_t, rho, max_iter, tol) %min_{X} {​∥B−A⋅X∥_{1}​+λ_t​∥X⋅L_{t}^{T}∥​_{1}}
-J_reconstructed = solve_inverse_L1_L1_spatial_v0(B, A, L_s, lambda_s, rho, max_iter, tol); %min_{X} {​∥B−A⋅X∥_{1}​+λ_s​∥L_s⋅X∥​_{1}}
-
 %J_reconstructed = solve_inverse_L1_L1(B, A, L_t, lambda_t, rho, max_iter, tol) %min_{X} {​∥B−A⋅X∥_{1}​+λ_t​∥X⋅L_{t}^{T}∥​_{1}} 
+%J_reconstructed = solve_inverse_L1_L1_spatial_v0(B, A, L_s, lambda_s, rho, max_iter, tol); %min_{X} {​∥B−A⋅X∥_{1}​+λ_s​∥L_s⋅X∥​_{1}}
+%J_reconstructed = solve_inverse_L1_L1_spatial_v0_old(B, A, L_s, lambda_s, rho, max_iter, tol); %min_{X} {​∥B−A⋅X∥_{1}​+λ_s​∥L_s⋅X∥​_{1}}
+J_reconstructed = stabilized_solver_L1_L1_L1(B, A, L_s, lambda_s, lambda, rho, max_iter, tol); %min_{x} {‖B-AX‖₁ + λₛ‖LₛX‖₁ + λ‖X‖₁}
 
 % Display results
 toc
@@ -98,12 +100,12 @@ hold on;
 
 % Plot all dipoles in 3D (the inverse problem ones)
 all_dipoles = DipoleField.pos(good_dipoles, :); % Positions of all dipoles (N x 3)
-dipole_plot = scatter3(all_dipoles(:, 1), all_dipoles(:, 2), all_dipoles(:, 3), 10, 'k', 'filled'); % Plot all dipoles in black
+dipole_plot = scatter3(all_dipoles(:, 1), all_dipoles(:, 2), all_dipoles(:, 3), 5, 'k', 'filled'); % Plot all dipoles in black
 xlabel('x'); ylabel('y'); zlabel('z'); title('3D Dipole Positions with Active Sources (Inverse Problem)');
 axis equal; grid on;
-
+view(3);
 % Define a threshold for active dipoles
-threshold = 0.7 * max(J_reconstructed(:)); % Adjust threshold as needed
+threshold = 0.8 * max(J_reconstructed(:)); % Adjust threshold as needed
 
 % Map source indices to dipole indices
 % Since each dipole has 3 orientations, divide by 3 and round up
@@ -127,12 +129,12 @@ for t = 1:T
         
         % Turn these dipoles black
         if ~isempty(inactive_dipoles)
-            scatter3(all_dipoles(inactive_dipoles, 1), all_dipoles(inactive_dipoles, 2), all_dipoles(inactive_dipoles, 3), 10, 'k', 'filled');
+            scatter3(all_dipoles(inactive_dipoles, 1), all_dipoles(inactive_dipoles, 2), all_dipoles(inactive_dipoles, 3), 5, 'k', 'filled');
         end
     end
     
     % Highlight active dipoles in red
-    scatter3(all_dipoles(active_dipoles, 1), all_dipoles(active_dipoles, 2), all_dipoles(active_dipoles, 3), 10, 'r', 'filled');
+    scatter3(all_dipoles(active_dipoles, 1), all_dipoles(active_dipoles, 2), all_dipoles(active_dipoles, 3), 5, 'r', 'filled');
     
     % Update the list of previously active dipoles
     active_dipoles_prev = active_dipoles;
@@ -151,10 +153,10 @@ hold on;
 
 % Plot all dipoles in 3D (the direct problem ones)
 all_dipoles = DipoleField.pos(good_dipoles, :); % Positions of all dipoles (N x 3)
-dipole_plot = scatter3(all_dipoles(:, 1), all_dipoles(:, 2), all_dipoles(:, 3), 10, 'k', 'filled'); % Plot all dipoles in black
+dipole_plot = scatter3(all_dipoles(:, 1), all_dipoles(:, 2), all_dipoles(:, 3), 5, 'k', 'filled'); % Plot all dipoles in black
 xlabel('x'); ylabel('y'); zlabel('z'); title('3D Dipole Positions with Active Sources (Forward Problem)');
 axis equal; grid on;
-
+view(3);
 % Define a threshold for active dipoles
 threshold = 0.01 * max(Xsimulated(:)); % Adjust threshold as needed
 
@@ -180,12 +182,12 @@ for t = 1:T
         
         % Turn these dipoles black
         if ~isempty(inactive_dipoles)
-            scatter3(all_dipoles(inactive_dipoles, 1), all_dipoles(inactive_dipoles, 2), all_dipoles(inactive_dipoles, 3), 10, 'k', 'filled');
+            scatter3(all_dipoles(inactive_dipoles, 1), all_dipoles(inactive_dipoles, 2), all_dipoles(inactive_dipoles, 3), 5, 'k', 'filled');
         end
     end
     
     % Highlight active dipoles in red
-    scatter3(all_dipoles(active_dipoles, 1), all_dipoles(active_dipoles, 2), all_dipoles(active_dipoles, 3), 10, 'r', 'filled');
+    scatter3(all_dipoles(active_dipoles, 1), all_dipoles(active_dipoles, 2), all_dipoles(active_dipoles, 3), 5, 'r', 'filled');
     
     % Update the list of previously active dipoles
     active_dipoles_prev = active_dipoles;
