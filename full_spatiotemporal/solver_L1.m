@@ -27,6 +27,14 @@ function X = solver_L1(B, A, lambda, rho, max_iter, tol);
 
     % Use Cholesky decomposition for faster solves
     L = chol(AtA + rho*I, 'lower');
+	
+	% Variables to track best solution
+    best_obj = inf;
+    best_X = X;
+    best_iter = 0;
+    best_primal_res = inf;
+    best_dual_res = inf;
+    best_rho = rho;
 
 	if verbose
         fprintf('ADMM for ‖B-AX‖₁ + λ‖X‖₁\n');
@@ -75,6 +83,25 @@ function X = solver_L1(B, A, lambda, rho, max_iter, tol);
         
         % Objective: ||B - AX||_1 + lambda ||X||_1
         obj = sum(abs(B - A*X), 'all') + lambda * sum(abs(X), 'all');
+		
+		% Track best solution
+        if obj < best_obj
+            best_obj = obj;
+            best_X = X;
+            best_iter = iter;
+            best_primal_res = primal_res;
+            best_dual_res = dual_res;
+            best_rho = rho;
+        end
+        
+        % Adjust rho
+        if primal_res > 10 * dual_res
+            rho = rho * 3;
+            L = chol(AtA + rho*I, 'lower');
+        elseif dual_res > 10 * primal_res
+            rho = rho / 3;
+            L = chol(AtA + rho*I, 'lower');
+        end
 
         if verbose
             fprintf('%4d\t%.3e\t%.3e\t%.3e\t%.3e\n', iter, primal_res, dual_res, obj, rho);
@@ -91,11 +118,25 @@ function X = solver_L1(B, A, lambda, rho, max_iter, tol);
     end
 
     % Denormalize the solution
-    X = X * B_norm / A_norm;
+    %X = X * B_norm / A_norm;
+	
+	best_X = best_X * B_norm / A_norm;
+	X=best_X;
+    
+    % Store best statistics
+    %5best_stats = struct(...
+    %    'best_iter', best_iter, ...
+    %    'best_obj', best_obj * A_norm * B_norm, ...  % Denormalized objective
+    %    'best_primal_res', best_primal_res, ...
+    %    'best_dual_res', best_dual_res, ...
+    %    'best_rho', best_rho);
 
     if iter == max_iter && verbose
         fprintf('-----------------------------------\n');
         fprintf('Maximum iterations reached\n');
+		
+		fprintf('Best solution found at iteration %d\n', best_iter);
+        fprintf('Best objective: %.3e\n', best_stats.best_obj);
     end
 end
 
