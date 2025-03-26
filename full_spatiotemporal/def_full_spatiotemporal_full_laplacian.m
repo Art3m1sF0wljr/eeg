@@ -223,7 +223,7 @@ active_dipoles_prev = [];
 
 for t = 1:T
     % Get top k sources at time t (sorted in descending order)
-    [~, sorted_indices] = sort(J_reconstructed(:, t),'descending');
+    [~, sorted_indices] = sort(J_reconstructed(:, t),'descend');
     top_k_sources = sorted_indices(1:k);
     
     % Map source indices to dipole indices (if 3 orientations per dipole)
