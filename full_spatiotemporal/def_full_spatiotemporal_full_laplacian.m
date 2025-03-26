@@ -207,7 +207,10 @@ end
 hold off;
 close(v_inverse);
 
-
+videoFile_inverse = 'top_k_dipoles.mp4';
+v_inverse = VideoWriter(videoFile_inverse, 'MPEG-4');
+v_inverse.FrameRate = 10;  % Adjust frame rate as needed
+open(v_inverse);
 % the highest k sources, where k is 
 figure;
 hold on;
@@ -242,9 +245,13 @@ for t = 1:T
     active_dipoles_prev = top_k_dipoles;
     
     title(sprintf('Top %d Dipoles at t=%d/%d', k, t, T));
+	
+	frame = getframe(gcf);
+    writeVideo(v_inverse, frame);
     pause(0.1*100/T); % Adjust speed
 end
 hold off;
+close(v_inverse);
 
 % Plot for the forward problem
 
