@@ -84,8 +84,8 @@ L_s = construct_spatial_laplacian(dipole_positions, sigma, neighborhood_threshol
 L_t = diag(-ones(T,1), 0) + diag(ones(T-1,1), 1); %first derivative matrix
 
 % Solve the inverse problem
-%J_reconstructed = solve_inverse_problem(B, A, L_s, L_t, lambda_s, lambda_t, T, tol, max_iter);% min_{X} {​∥B−A⋅X∥_{2}^{2}​+λ_s​∥L_s​⋅X∥_{2}^{2}​+λ_t​∥X⋅L_{t}^{T}∥​_{2}^{2}}
-J_reconstructed = solver_L1(B, A, lambda, rho, max_iter, tol); %min_{x} {‖B-AX‖₁ + λ‖X‖₁}
+J_reconstructed = solve_inverse_problem(B, A, L_s, L_t, lambda_s, lambda_t, T, tol, max_iter);% min_{X} {​∥B−A⋅X∥_{2}^{2}​+λ_s​∥L_s​⋅X∥_{2}^{2}​+λ_t​∥X⋅L_{t}^{T}∥​_{2}^{2}}
+%J_reconstructed = solver_L1(B, A, lambda, rho, max_iter, tol); %min_{x} {‖B-AX‖₁ + λ‖X‖₁}
 
 %J_reconstructed = ADMM_L1_minimization(B, A, L_s, L_t, lambda_s, lambda_t, rho, max_iter, tol, verbose)% min_{X} {​∥B−A⋅X∥_{1}​+λ_s​∥L_s​⋅X∥_{1}​+λ_t​∥X⋅L_{t}^{T}∥​_{1}}, not quite working
 %J_reconstructed = ADMM_L1_minimization_GPU(B, A, L_s, L_t, lambda_s, lambda_t, rho, max_iter, tol, verbose)%same as abobe but with gpu features
