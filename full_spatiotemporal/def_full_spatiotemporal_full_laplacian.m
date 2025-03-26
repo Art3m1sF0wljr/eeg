@@ -68,7 +68,7 @@ lambda_s = 0.1e-3; % Spatial regularization parameter 0.1e-8 for L2, 0.1e-1 for 
 lambda_t = 0.1e-3; % Temporal regularization parameter 0.1e-8 for L2, 0.1e-1 for L1_v0
 lambda = 0.1e-5; % ‖X‖₁ regularization parameter
 tol = 1e-4; % Convergence tolerance  3e-5 for L2, 3e-3 for L1_v0
-max_iter = 150; % Maximum iterations
+max_iter = 20; % Maximum iterations
 rho = 1e+0;      % ADMM penalty parameter 50 for L1    
 
 % Spatial Laplacian (Nsources x Nsources)
@@ -223,7 +223,7 @@ active_dipoles_prev = [];
 
 for t = 1:T
     % Get top k sources at time t (sorted in descending order)
-    [~, sorted_indices] = sort(J_reconstructed(:, t),k);
+    [~, sorted_indices] = sort(J_reconstructed(:, t),'descending');
     top_k_sources = sorted_indices(1:k);
     
     % Map source indices to dipole indices (if 3 orientations per dipole)
