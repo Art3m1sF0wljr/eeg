@@ -66,10 +66,10 @@ function X = solver_L1(B, A, lambda, rho, max_iter, tol);
         dual_res = rho * (norm(A'*(Z1 - Z1_prev), 'fro') + norm(Z2 - Z2_prev, 'fro'));
 		
 		if primal_res > 10 * dual_res
-			rho = rho * 1.1;   % Increase penalty if primal res is too high
+			rho = rho * 3;   % Increase penalty if primal res is too high
             L = chol(AtA + rho*I, 'lower');
 		elseif dual_res > 10 * primal_res
-			rho = rho / 1.1;   % Decrease penalty if dual res is too high
+			rho = rho / 3;   % Decrease penalty if dual res is too high
             L = chol(AtA + rho*I, 'lower');
 		end
         
@@ -77,7 +77,7 @@ function X = solver_L1(B, A, lambda, rho, max_iter, tol);
         obj = sum(abs(B - A*X), 'all') + lambda * sum(abs(X), 'all');
 
         if verbose
-            fprintf('%4d\t%.3e\t%.3e\t%.3e\n', iter, primal_res, dual_res, obj);
+            fprintf('%4d\t%.3e\t%.3e\t%.3e\t%.3e\n', iter, primal_res, dual_res, obj, rho);
         end
 
         % Check convergence

@@ -24,7 +24,7 @@ function X = stabilized_solver(B, A, L_s, lambda_s, rho, max_iter, tol)
     end
     for iter = 1:max_iter
         % X-update with iterative refinement
-        rhs = A'*(B-Z1-U1) + rho*L_s'*(Z2+U2);
+        rhs = A'*(B-Z1+U1) + rho*L_s'*(Z2+U2);
         X_prev = X;
 		Z1_prev=Z1;
 		Z2_prev=Z2;

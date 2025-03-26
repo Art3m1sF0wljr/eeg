@@ -66,10 +66,10 @@ end
 % Solve the inverse problem using the provided function
 lambda_s = 0.1e-3; % Spatial regularization parameter 0.1e-8 for L2, 0.1e-1 for L1_v0
 lambda_t = 0.1e-3; % Temporal regularization parameter 0.1e-8 for L2, 0.1e-1 for L1_v0
-lambda = 0.1e-8; % ‖X‖₁ regularization parameter
+lambda = 0.1e-5; % ‖X‖₁ regularization parameter
 tol = 1e-4; % Convergence tolerance  3e-5 for L2, 3e-3 for L1_v0
-max_iter = 100; % Maximum iterations
-rho = 1e-1;      % ADMM penalty parameter 50 for L1    
+max_iter = 150; % Maximum iterations
+rho = 1e+0;      % ADMM penalty parameter 50 for L1    
 
 % Spatial Laplacian (Nsources x Nsources)
 % Assuming dipole_positions is a Nsources x 3 matrix containing the positions of the dipoles
@@ -98,6 +98,13 @@ J_reconstructed = solver_L1(B, A, lambda, rho, max_iter, tol); %min_{x} {‖B-AX
 toc
 
 % Display results
+
+videoFile_inverse = 'inverse_dipoles.mp4';
+v_inverse = VideoWriter(videoFile_inverse, 'MPEG-4');
+v_inverse.FrameRate = 10;  % Adjust frame rate as needed
+open(v_inverse);
+
+
 figure;
 hold on;
 
@@ -145,11 +152,23 @@ for t = 1:T
     % Add title with time point information
     title(sprintf('Active Dipoles (inverse) at Time Point %d/%d', t, T));
     
+    
+    frame = getframe(gcf);
+    writeVideo(v_inverse, frame);
+
     % Pause to visualize the change
     pause(0.1*100/T); % Adjust pause duration as needed
+    
 end
 hold off;
+close(v_inverse);
 
+
+
+videoFile_inverse = '99percent_dipoles.mp4';
+v_inverse = VideoWriter(videoFile_inverse, 'MPEG-4');
+v_inverse.FrameRate = 10;  % Adjust frame rate as needed
+open(v_inverse);
 % Plot all dipoles in 3D percentile (the inverse problem ones)
 figure;
 hold on;
@@ -181,9 +200,14 @@ for t = 1:T
     
     active_dipoles_prev = active_dipoles;
     title(sprintf(' t=%d percentile of Active Dipoles at (Threshold: %.2f)', t, threshold));
+    frame = getframe(gcf);
+    writeVideo(v_inverse, frame);
     pause(0.1*100/T);
 end
 hold off;
+close(v_inverse);
+
+
 % the highest k sources, where k is 
 figure;
 hold on;
@@ -223,6 +247,13 @@ end
 hold off;
 
 % Plot for the forward problem
+
+videoFile_direct = 'direct_dipoles.mp4';
+v_direct = VideoWriter(videoFile_direct, 'MPEG-4');
+v_direct.FrameRate = 10;  % Match frame rate with inverse video
+open(v_direct);
+
+
 figure;
 hold on;
 
@@ -269,8 +300,12 @@ for t = 1:T
     
     % Add title with time point information
     title(sprintf('Active Dipoles (direct) at Time Point %d/%d', t, T));
-    
+
+    frame = getframe(gcf);
+    writeVideo(v_direct, frame);
+
     % Pause to visualize the change
     pause(0.1*100/T); % Adjust pause duration as needed
 end
 hold off;
+close(v_direct);
