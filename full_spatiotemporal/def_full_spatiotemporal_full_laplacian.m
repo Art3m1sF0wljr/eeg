@@ -68,7 +68,7 @@ lambda_s = 0.1e-7; % Spatial regularization parameter 0.1e-8 for L2, 0.1e-1 for 
 lambda_t = 0.1e-7; % Temporal regularization parameter 0.1e-8 for L2, 0.1e-1 for L1_v0
 lambda = 0.1e-5; % ‖X‖₁ regularization parameter
 tol = 1e-4; % Convergence tolerance  3e-5 for L2, 3e-3 for L1_v0
-max_iter = 100; % Maximum iterations
+max_iter = 500; % Maximum iterations
 rho = 1e+0;      % ADMM penalty parameter 50 for L1    
 
 % Spatial Laplacian (Nsources x Nsources)
