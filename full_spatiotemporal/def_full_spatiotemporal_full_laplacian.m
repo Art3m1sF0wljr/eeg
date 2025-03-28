@@ -80,8 +80,8 @@ verbose = 1;  %0,1,2
 L_s = construct_spatial_laplacian(dipole_positions, sigma, neighborhood_threshold);
 
 % Temporal smoothness matrix (T x T)
-%L_t = diag(ones(T-1,1), 1) + diag(ones(T-1,1), -1) - 2*eye(T); % Temporal smoothness matrix, approximates second derivative thru finite differences
-L_t = diag(-ones(T,1), 0) + diag(ones(T-1,1), 1); %first derivative matrix
+L_t = diag(ones(T-1,1), 1) + diag(ones(T-1,1), -1) - 2*eye(T); % Temporal smoothness matrix, approximates second derivative thru finite differences
+%L_t = diag(-ones(T,1), 0) + diag(ones(T-1,1), 1); %first derivative matrix
 
 % Solve the inverse problem
 J_reconstructed = solve_inverse_problem(B, A, L_s, L_t, lambda_s, lambda_t, T, tol, max_iter);% min_{X} {​∥B−A⋅X∥_{2}^{2}​+λ_s​∥L_s​⋅X∥_{2}^{2}​+λ_t​∥X⋅L_{t}^{T}∥​_{2}^{2}}
