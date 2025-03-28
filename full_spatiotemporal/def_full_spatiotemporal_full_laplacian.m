@@ -218,7 +218,7 @@ all_dipoles = DipoleField.pos(good_dipoles, :);
 scatter3(all_dipoles(:, 1), all_dipoles(:, 2), all_dipoles(:, 3), 5, 'k', 'filled');
 axis equal; grid on; view(3);
 
-k = active_sources; % Highlight top 10 most active sources at each time step
+k = 10; % Highlight top 10 most active sources at each time step
 active_dipoles_prev = [];
 
 for t = 1:T
