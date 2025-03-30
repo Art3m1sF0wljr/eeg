@@ -6,7 +6,9 @@ load('DipoleField');
 % Load EEG data
 [fname, fdir] = uigetfile('*.edf', 'Select the EEG file');
 [hdr, record] = edfread([fdir fname]);
-
+% Select only the first second of data
+samples_to_keep = hdr.samples(1); % Number of samples in 1 second
+record = record(:, 1:min(samples_to_keep, size(record,2))); % Take first second or all if shorter   
 % Convert to proper FieldTrip structure
 data = [];
 data.trial = {record};
@@ -170,7 +172,7 @@ figure; % Wider figure window
 % Create a larger scalp surface interpolation
 S = scatteredInterpolant(elec.elecpos(:,1), elec.elecpos(:,2), elec.elecpos(:,3), 'natural');
 [minX, maxX] = bounds(elec.elecpos(:,1));
-[minY, maxY] = bounds(elec.elecpos(:,2));  
+[minY, maxY] = bounds(elec.elecpos(:,2));
 padding = 1; % Add padding around electrodes
 [xx, yy] = meshgrid(linspace(minX-padding, maxX+padding, 20), linspace(minY-padding, maxY+padding, 20));
 zz = S(xx, yy);
@@ -184,7 +186,7 @@ hold on;
 
 % Plot all dipoles with better sizing
 scatter3(sourcemodel.pos(:,1), sourcemodel.pos(:,2), sourcemodel.pos(:,3), ...
-    15, 'k', 'filled', 'MarkerFaceAlpha', 0.3);
+    5, 'k', 'filled', 'MarkerFaceAlpha', 0.3);
 
 % Set better axis properties
 %axis equal tight;
@@ -194,13 +196,15 @@ view(135, 30); % Better viewing angle
 %xlabel('X (mm)', 'FontSize', 14);
 %ylabel('Y (mm)', 'FontSize', 14);
 %zlabel('Z (mm)', 'FontSize', 14);
-title('Top 10 Active Dipoles Over Time', 'FontSize', 16);
+%title('Top 10 Active Dipoles Over Time', 'FontSize', 16);
 
 % Adjust lighting for better visibility
 %light('Position',[1 1 1],'Style','infinite');
 %lighting gouraud;
 %material dull;
 %h_surf.FaceLighting = 'gouraud';
+zlim([-150 150]); % Adjust Z-range to match X & Y
+view(135, 45); % Increase elevation angle
 
 % Prepare video with better resolution
 videoFile = 'top10_dipoles_evolution_improved.mp4';
@@ -243,7 +247,7 @@ for t_idx = 1:T
     if ~isempty(active_dipoles_prev)
         scatter3(sourcemodel.pos(active_dipoles_prev, 1), ...
                 sourcemodel.pos(active_dipoles_prev, 2), ...
-                sourcemodel.pos(active_dipoles_prev, 3), 15, 'k', 'filled', 'MarkerFaceAlpha', 0.3);
+                sourcemodel.pos(active_dipoles_prev, 3), 5, 'k', 'filled', 'MarkerFaceAlpha', 0.3);
     end
     
     % Highlight current top-k dipoles with size proportional to activity
@@ -261,7 +265,7 @@ for t_idx = 1:T
     time_text = sprintf('Time: %.3f s', time_sec);
     if exist('htext', 'var'), delete(htext); end
     htext = text(minX-padding+5, minY-padding+5, max(zz(:))+10, time_text, ...
-               'FontSize', 14, 'Color', 'k', 'BackgroundColor', 'w');
+               'FontSize', 5, 'Color', 'k', 'BackgroundColor', 'w');
     
     % Update previous actives
     active_dipoles_prev = top_k_dipoles;
@@ -271,7 +275,7 @@ for t_idx = 1:T
     writeVideo(v, frame);
     
     % Pause for visualization
-    pause(0.005);
+    pause(0.0001);
     
     % Delete the current highlight for next frame
     delete(h);

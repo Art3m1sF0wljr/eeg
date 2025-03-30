@@ -6,7 +6,9 @@ load('DipoleField');
 % Load EEG data
 [fname, fdir] = uigetfile('*.edf', 'Select the EEG file');
 [hdr, record] = edfread([fdir fname]);
-
+% Select only the first second of data
+samples_to_keep = hdr.samples(1); % Number of samples in 1 second
+record = record(:, 1:min(samples_to_keep, size(record,2))); % Take first second or all if shorter   
 % Convert to proper FieldTrip structure
 data = [];
 data.trial = {record};
@@ -289,48 +291,71 @@ n_samples = min(round(time_window * data.fsample), size(data.trial{1},2));
 
 % Get indices of inside dipoles
 inside_dipoles = find(source.inside);
+n_dipoles = length(inside_dipoles);
 
-% Determine how many channels we can actually use (limited by both data and leadfield)
-n_channels = min(5, min(length(good_elec), min(size(sourcemodel.leadfield{inside_dipoles(1)},1))));
-disp(['Using ' num2str(n_channels) ' channels for reconstruction']);
-
-% Build leadfield matrix for selected channels (n_channels × 3n_dipoles)
-A = zeros(n_channels, 3*length(inside_dipoles));
-for i = 1:length(inside_dipoles)
-    dipole_idx = inside_dipoles(i);
-    % Ensure we only use available channels
-    ch_indices = good_elec(1:min(n_channels, min( length(good_elec), min(size(sourcemodel.leadfield{dipole_idx},1)))));
-    A(:,(i-1)*3+1:i*3) = sourcemodel.leadfield{dipole_idx}(ch_indices, :);
+% Use the valid channels that work with both leadfield and filter
+valid_ch = [];
+for ch = [4, 6, 19, 21] % Try the channels that previously worked
+    valid = true;
+    for i = 1:n_dipoles
+        dipole_idx = inside_dipoles(i);
+        % Check if channel exists in both leadfield and filter
+        if ch > size(sourcemodel.leadfield{dipole_idx}, 1) || ...
+           ch > size(source.avg.filter{dipole_idx}, 2)
+            valid = false;
+            break;
+        end
+    end
+    if valid
+        valid_ch = [valid_ch, ch];
+    end
 end
 
-% Get filters and reshape properly (3n_dipoles × n_channels)
-w = cat(2, source.avg.filter{inside_dipoles}); % This gives n_dipoles × {3 × n_channels}
-w = vertcat(w{:})'; % Now should be n_channels × 3n_dipoles
+if isempty(valid_ch)
+    error('No valid channels found that work with all dipoles');
+end
+
+n_channels = length(valid_ch);
+disp(['Using channels: ' num2str(valid_ch)]);
+
+% Build leadfield matrix (n_channels × 3n_dipoles)
+A = zeros(n_channels, 3*n_dipoles);
+for i = 1:n_dipoles
+    dipole_idx = inside_dipoles(i);
+    A(:, (i-1)*3+1:i*3) = sourcemodel.leadfield{dipole_idx}(valid_ch, :);
+end
+
+% Build filter matrix (3n_dipoles × n_channels)
+w = zeros(3*n_dipoles, n_channels);
+for i = 1:n_dipoles
+    dipole_idx = inside_dipoles(i);
+    w((i-1)*3+1:i*3, :) = source.avg.filter{dipole_idx}(:, valid_ch);
+end
 
 % Verify dimensions
-disp(['Leadfield dimensions: ' num2str(size(A))]);
-disp(['Filter dimensions: ' num2str(size(w))]);
-disp(['EEG data dimensions: ' num2str(size(data.trial{1}(1:n_channels, 1:n_samples)))]);
+disp(['Leadfield (A) dimensions: ' num2str(size(A))]);
+disp(['Filter (w) dimensions: ' num2str(size(w))]);
+disp(['EEG data dimensions: ' num2str(size(data.trial{1}(valid_ch, 1:n_samples)))]);
 
-% Reconstruct EEG: A * w' * original_data
-est = A * w' * data.trial{1}(1:n_channels, 1:n_samples);
+% Reconstruct EEG: A * w * original_data
+est = A * w * data.trial{1}(valid_ch, 1:n_samples);
 
 % Plot comparison
 figure;
 subplot(2,1,1);
-plot(data.time{1}(1:n_samples), data.trial{1}(1:n_channels, 1:n_samples));
-title('Original EEG (First Channels =)', num2str(n_channels));
+plot(data.time{1}(1:n_samples), data.trial{1}(valid_ch, 1:n_samples));
+title(['Original EEG (' num2str(n_channels) ' Channels)']);
 ylabel('Amplitude (\muV)');
-legend(data.label(1:n_channels));
+legend(data.label(valid_ch));
 
 subplot(2,1,2);
 plot(data.time{1}(1:n_samples), est);
-title('Reconstructed EEG (First Channels)= ',num2str(n_channels));
+title(['Reconstructed EEG (' num2str(n_channels) ' Channels)']);
 xlabel('Time (s)');
 ylabel('Amplitude (\muV)');
-legend(strcat('Recon-', data.label(1:n_channels)));
+legend(strcat('Recon-', data.label(valid_ch)));
 
 % Calculate reconstruction error
-recon_error = data.trial{1}(1:n_channels, 1:n_samples) - est;
-recon_quality = norm(recon_error, 'fro')/norm(data.trial{1}(1:n_channels, 1:n_samples), 'fro');
+recon_error = data.trial{1}(valid_ch, 1:n_samples) - est;
+recon_quality = norm(recon_error, 'fro')/norm(data.trial{1}(valid_ch, 1:n_samples), 'fro');
 disp(['Reconstruction quality metric (0=perfect): ' num2str(recon_quality)]);
