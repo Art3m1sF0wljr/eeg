@@ -347,6 +347,40 @@ title(['Reconstructed EEG (All ' num2str(length(valid_ch)) ' Valid Channels)']);
 xlabel('Time (s)');
 ylabel('Amplitude (\muV)');
 
+% Now plot one for each channel to see how close it is to the original, in a single figure
+figure;
+n_channels = length(data.label); % Number of channels (should be 21)
+
+for ch = 1:n_channels
+    subplot(n_channels, 1, ch);
+    hold on;
+    
+    % Plot original EEG (real)
+    plot(data.time{1}(1:n_samples), data.trial{1}(ch, 1:n_samples), 'b');
+    
+    % Plot reconstructed EEG
+    plot(data.time{1}(1:n_samples), est(ch, 1:n_samples), 'r--');
+    
+    % Add channel label
+    ylabel(data.label{ch});
+    
+    % Only show x-axis label for bottom plot
+    if ch ~= n_channels
+        set(gca, 'XTickLabel', []);
+    else
+        xlabel('Time (s)');
+    end
+    
+    % Add legend for first subplot only (to save space)
+    if ch == 1
+        legend('Original', 'Reconstructed', 'Location', 'best');
+    end
+end
+
+% Adjust figure properties for better visualization
+%set(gcf, 'Position', [100, 100, 800, 1200]); % Make figure taller
+sgtitle('EEG Channel Comparison: Original vs Reconstructed');
+
 % Calculate reconstruction quality
 recon_error = data.trial{1}(valid_ch, 1:n_samples) - est;
 recon_quality = norm(recon_error, 'fro')/norm(data.trial{1}(valid_ch, 1:n_samples), 'fro');
