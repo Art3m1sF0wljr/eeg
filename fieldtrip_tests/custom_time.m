@@ -232,7 +232,8 @@ n_samples = min(round(time_window * data.fsample), size(data.trial{1}, 2));
 inside_idx = find(sourcemodel.inside);
 n_dipoles = length(inside_idx);
 
-%{ Build leadfield matrix A (Nchannels × 3Ndipoles)
+%{ 
+%Build leadfield matrix A (Nchannels × 3Ndipoles)
 A = zeros(length(data.label), 3*n_dipoles);
 for i = 1:n_dipoles
     idx = inside_idx(i);
