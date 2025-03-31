@@ -359,7 +359,7 @@ for ch = 1:n_channels
     plot(data.time{1}(1:n_samples), data.trial{1}(ch, 1:n_samples), 'b');
     
     % Plot reconstructed EEG
-    plot(data.time{1}(1:n_samples), est(ch, 1:n_samples), 'r--');
+    plot(data.time{1}(1:n_samples), 100.*est(ch, 1:n_samples), 'r--');
     
     % Add channel label
     ylabel(data.label{ch});
