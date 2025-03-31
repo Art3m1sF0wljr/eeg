@@ -258,6 +258,7 @@ title('Reconstructed EEG');
 xlabel('Time (s)');
 ylabel('Amplitude (\muV)');
 
+
 % Calculate reconstruction error
 recon_error = data.trial{1}(:, 1:n_samples) - est;
 recon_quality = norm(recon_error, 'fro') / norm(data.trial{1}(:, 1:n_samples), 'fro');
