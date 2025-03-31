@@ -90,7 +90,7 @@ for i = 1:n_sources
 end
 
 % Regularization parameters
-lambda = 0.1 * trace(A*A') / n_channels;      % Spatial regularization
+lambda = 0.1 * trace(A*A') / n_channels;      % Spatial regularization identity like
 lambda_t = 0.01 * lambda;                     % Temporal regularization (adjust as needed)
 
 % Construct temporal difference matrix L_t (T-1 × T)
@@ -232,12 +232,13 @@ n_samples = min(round(time_window * data.fsample), size(data.trial{1}, 2));
 inside_idx = find(sourcemodel.inside);
 n_dipoles = length(inside_idx);
 
-% Build leadfield matrix A (Nchannels × 3Ndipoles)
+%{ Build leadfield matrix A (Nchannels × 3Ndipoles)
 A = zeros(length(data.label), 3*n_dipoles);
 for i = 1:n_dipoles
     idx = inside_idx(i);
     A(:, (3*i-2):3*i) = sourcemodel.leadfield{idx};
 end
+%}
 
 % Reconstruct EEG: A * J_vec (where J_vec is [3Ndipoles × T])
 % For the selected time window:
