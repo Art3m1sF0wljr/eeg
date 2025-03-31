@@ -23,7 +23,7 @@ data.fsample = hdr.samples(1);
 % Simple preprocessing (bandpass filter 1-30 Hz)
 cfg = [];
 cfg.bpfilter = 'yes';
-cfg.bpfreq = [1 30];
+cfg.bpfreq = [1 45];
 data = ft_preprocessing(cfg, data);
 
 %% ====================== 2. Match EEG Channels to Electrode Positions ======================

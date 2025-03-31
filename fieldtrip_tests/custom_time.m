@@ -10,7 +10,7 @@ load('DipoleField');
 samples_to_keep = hdr.samples(1); % Number of samples in 1 second
 % Select the SECOND second (1-2 seconds)
 start_sample = 1*samples_to_keep + 1; % Start at beginning of 2nd second
-end_sample = min(5*samples_to_keep, size(record,2)); % End at 2 seconds or file end
+end_sample = min(2*samples_to_keep, size(record,2)); % End at 2 seconds or file end
 % Extract the desired segment
 record = record(:, start_sample:end_sample);
 % Convert to proper FieldTrip structure
