@@ -342,7 +342,7 @@ title(['Original EEG (All ' num2str(length(valid_ch)) ' Valid Channels)']);
 ylabel('Amplitude (\muV)');
 
 subplot(2,1,2);
-plot(data.time{1}(1:n_samples), est);
+plot(data.time{1}(1:n_samples), 100.*est);
 title(['Reconstructed EEG (All ' num2str(length(valid_ch)) ' Valid Channels)']);
 xlabel('Time (s)');
 ylabel('Amplitude (\muV)');
