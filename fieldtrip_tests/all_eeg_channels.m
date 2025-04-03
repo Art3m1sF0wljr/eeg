@@ -382,6 +382,6 @@ end
 sgtitle('EEG Channel Comparison: Original vs Reconstructed');
 
 % Calculate reconstruction quality
-recon_error = data.trial{1}(valid_ch, 1:n_samples) - est;
+recon_error = data.trial{1}(valid_ch, 1:n_samples) - 100.*est;
 recon_quality = norm(recon_error, 'fro')/norm(data.trial{1}(valid_ch, 1:n_samples), 'fro');
 disp(['Reconstruction quality (0=perfect): ' num2str(recon_quality)]);
